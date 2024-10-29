@@ -1,10 +1,10 @@
 from skimage.transform import resize
 import numpy as np
-from cTab import CTab
 import cv2
 import matplotlib.pyplot as plt
 import tensorflow as tf
 from scipy.interpolate import CubicSpline
+
 
 
 def tabToImage(tab, size, anti_aliasing=True):
