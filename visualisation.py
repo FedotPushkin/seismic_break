@@ -75,6 +75,26 @@ def show_image_samples(images, names):
     plt.show(block=True)
 
 
+def plot_df_samples(df):
+    num_images = 3
+    fig, axes = plt.subplots(1, num_images, figsize=(15, 5))
+    for i in range(num_images):
+        bias = 12
+        # Display the image
+        axes[i].imshow(df['2d_array'][i+bias].T, cmap='gray')
+
+        # Plot the corresponding line
+        axes[i].plot(df['1d_array'][i+bias], color='red', linewidth=1)
+
+        # Set title or labels if needed
+        axes[i].set_title(f'Image {i+bias + 1}')
+        axes[i].axis('off')  # Hide axes ticks
+
+    # Adjust layout
+    plt.tight_layout()
+    plt.show(block=True)
+
+
 def make_predictions(X1, X2):
     res = []
     for i in range(1):
