@@ -2,8 +2,9 @@ import argparse
 #import tensorflow as tf
 #import numpy as np
 #import os
-#from nn import Siamese_NN
-#from build_data import create_fit_data, create_test_data
+from nn import Unet_NN
+import cProfile
+from build_data import build_train_data, build_test_data
 from loading import load_db
 #from visualisation import show_image_samples, show_performance_metrics, make_predictions
 
@@ -35,8 +36,9 @@ if __name__ == '__main__':
     eval_folder = args.eval_folder
     plot_samples = args.plot_samples
     load = args.load
-    im_size = 128
-    test_size = 0.1
+    im_width = 256
+    im_height = 512
+    test_size = 0.2
 
     if test:
         db_paths = [f for f in os.listdir(folder)]
@@ -53,7 +55,7 @@ if __name__ == '__main__':
                 if plot_samples:
                     show_image_samples(images+ev_image, sample_ids+eval_id)
             except Exception as e:
-                print(f"Error loading signatures: {e}")
+                print(f"Error loading seismic data: {e}")
                 raise
             Xt1, Xt2 = create_test_data(images, stps, ev_image, ev_stps, im_size)
             y_pred_mean = np.mean(make_predictions(Xt1, Xt2))
@@ -64,21 +66,26 @@ if __name__ == '__main__':
         show_performance_metrics(np.array(y_true), np.array(y_eval))
     else:
         folder_path = 'Halfmile3D'
+        profiler = cProfile.Profile()
+
         try:
-            traces_img, first_break_lines = load_db(folder_path, im_size, load, test)
+            traces_img, first_break_lines, max_width = load_db(folder_path, load, test, im_width=im_width, im_height=im_height)
+
         except Exception as e:
             print(f"Error loading images: {e}")
             raise
 
-        if plot_samples:
-            show_image_samples(images[:6], sample_ids[:6])
-
-        Xt1, Xt2, y = create_fit_data(sample_ids, images, stps, forms, truth, im_size)
-
-        model = Siamese_NN(input_shape=(im_size, im_size, 2))
+        #if plot_samples:
+        #    show_image_samples(images[:6], sample_ids[:6])
+        profiler.enable()
+        X, y = build_train_data(traces_img, first_break_lines, im_height=im_height, max_width=max_width)
+        profiler.disable()
+        profiler.print_stats(sort='time')
+        model = Unet_NN(input_shape=(im_height, max_width, 1))
 
         if fit:
-            model.fit_to_data(Xt1, Xt2, y, batch_size=16, epochs=20, show_perf=True)
+            pass
+            #model.fit_to_data(X, y, batch_size=16, epochs=20, show_perf=True)
 
 
 
