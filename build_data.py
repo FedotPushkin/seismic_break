@@ -2,69 +2,51 @@ import pandas as pd
 import itertools
 import numpy as np
 import tensorflow as tf
+from visualisation import show_image_samples
+import cv2
+from tqdm import tqdm
+import memory_profiler
+import gc
 
-
-def create_fit_data(sample_ids, images, stps, forms, truth, im_size):
-    if len(sample_ids) == 0 or len(images) == 0 or len(forms) == 0 or len(truth) == 0:
+@memory_profiler.profile
+def build_train_data(traces_img, first_break_lines, im_height, max_width):
+    if traces_img is None or first_break_lines is None:
+        raise ValueError("Input lists must not be None.")
+    if len(traces_img) == 0 or len(first_break_lines) == 0:
         raise ValueError("Input lists must not be empty.")
-    if len(sample_ids) == len(images) == len(forms) == len(truth):
-
-        images = np.reshape(images, (images.shape[0], im_size, im_size, 1))
-        stps = np.reshape(np.array(stps), (stps.shape[0], im_size, im_size, 1))
-        img_combined = tf.concat([images, stps], axis=-1)
-        df = pd.DataFrame(
-            {'id': sample_ids,
-             'form': forms,
-             'true': truth
-             })
-        unique_forms = list(set(forms))
-        pos_examples, neg_examples = [], []
-        for form in unique_forms:
-            gids = df[(df['form'] == form) & (df['true'] == 1)]['id'].tolist()
-            fids = df[(df['form'] == form) & (df['true'] == 0)]['id'].tolist()
-            if len(gids) > 1:
-                pos_examples += list(itertools.permutations(gids, 2))
-
-            for g in gids:
-                for f in fids:
-                    neg_examples.append((g, f))
-                    neg_examples.append((f, g))
-
-        imdict = dict(zip(sample_ids, img_combined))
-        y = np.concatenate([np.ones(len(pos_examples)), np.zeros(len(neg_examples))])
-
-        Xt1, Xt2 = [], []
-        for p in pos_examples:
-            Xt1.append(imdict[p[0]])
-            Xt2.append(imdict[p[1]])
-        for n in neg_examples:
-            Xt1.append(imdict[n[0]])
-            Xt2.append(imdict[n[1]])
-
-        Xt1 = np.array(Xt1)
-        Xt2 = np.array(Xt2)
-        y = np.array(y)
+    if len(traces_img) != len(first_break_lines):
+        raise ValueError("Input lists must have equal shapes.")
     else:
-        raise ValueError("Length of all input lists must be the same.")
-    return Xt1, Xt2, y
+        n_samples = len(first_break_lines)
+        masks = []
+
+        for i in tqdm(range(n_samples), desc="Creating masks"):
+            mask = np.zeros((max_width, im_height), dtype=np.uint8)
+            y_line = first_break_lines[i]
+            for x in range(max_width):
+                  # Calculate y value on the line for this x
+                if x < len(y_line):
+                    if 0 <= y_line[x] < im_height:
+                        mask[x, y_line[x]] = 1
+                        mask[x, 0:y_line[x]] = 0
+                        mask[x, y_line[x]+1:] = 2
+                elif x > len(y_line):
+                    mask[x, :] = 0
+            masks.append(mask.T)
+            if len(masks) == 6 and 0:
+                show_image_samples(masks, [*range(6)])
+            del mask
+
+    return traces_img, masks
 
 
-def create_test_data(images, stps, ev_image, ev_stps, im_size):
+def build_test_data(images, ev_image, im_size):
     if len(images) == 0 or len(ev_image) == 0:
         raise ValueError("Input lists must not be empty.")
     if len(ev_image) == 1:
         Xt1, Xt2 = [], []
         images = np.reshape(images, (len(images), im_size, im_size, 1))
-        stps = np.reshape(np.array(stps), (len(stps), im_size, im_size, 1))
-        img_combined = tf.concat([images, stps], axis=-1)
         ev_image = np.reshape(ev_image, (len(ev_image), im_size, im_size, 1))
-        ev_stps = np.reshape(np.array(ev_stps), (len(ev_stps), im_size, im_size, 1))
-        ev_combined = tf.concat([ev_image, ev_stps], axis=-1)
-        for img in img_combined:
-            Xt1.append(img)
-            Xt1.append(ev_combined[0])
-            Xt2.append(ev_combined[0])
-            Xt2.append(img)
 
         return np.array(Xt1), np.array(Xt2)
     else:
