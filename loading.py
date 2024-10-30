@@ -1,21 +1,19 @@
 import os
 import numpy as np
 import h5py
-import matplotlib.pyplot as plt
 import pandas as pd
-import seaborn as sns
 from skimage.transform import resize
 from visualisation import plot_df_samples
 import time
 
+
 def load_db(folder_path, im_size, load, test):
-    # List of all *.tab files in folder
+    # List of all *.hdf5 files in folder
     if load:
         traces_img, first_break_line = None, None
         file_names = [f for f in os.listdir(folder_path) if f.endswith('.hdf5')]
         if not file_names:
-            raise ValueError("No .tab files found in the specified folder.")
-        names, imgs, stps = [], [], []
+            raise ValueError("No .hdf5 files found in the specified folder.")
 
         for file_name in file_names:
             file_path = os.path.join(folder_path, file_name)
@@ -30,7 +28,7 @@ def load_db(folder_path, im_size, load, test):
                     f_break = h5file['TRACE_DATA/DEFAULT/SPARE1'][:]
                     pivots = []
                     pivots2 = []
-                    for idx, x in enumerate(rec_x):
+                    for idx, x in enumerate(rec_x[:1000]):
                         if idx == 0 or idx == len(rec_x)-1:
                             continue
                         if x > rec_x[idx+1] and x > rec_x[idx-1]:
@@ -39,14 +37,15 @@ def load_db(folder_path, im_size, load, test):
                             #pivots2.append(idx)
                     traces_img = np.split(data_arr, pivots, axis=0)
 
-                    first_break_line = np.split(f_break, pivots, axis=0)
-                    n_traces = len(first_break_line)
+                    first_break_lines = np.split(f_break, pivots, axis=0)
+                    n_traces = len(first_break_lines)
                     labels = [*range(n_traces)]
-                    df = pd.DataFrame({'2d_array': traces_img, '1d_array': first_break_line, 'Label': labels})
+                    df = pd.DataFrame({'2d_array': traces_img, '1d_array': first_break_lines, 'Label': labels})
                     start_time = time.time()
+
                     for idx, img in enumerate(df['2d_array']):
-                        resized_img = resize(img, (im_size, im_size), anti_aliasing=True)
-                        normalized_img = (resized_img - resized_img.min()) / (resized_img.max() - resized_img.min())
+                        #resized_img = resize(img, (im_size, im_size), anti_aliasing=True)
+                        normalized_img = (img - img.min()) / (img.max() - img.min())
                         df.at[idx, '2d_array'] = normalized_img
                         arr = df.loc[idx, '1d_array']
                         arr = arr.astype(object)
@@ -56,6 +55,7 @@ def load_db(folder_path, im_size, load, test):
                         if idx % 300 == 0:
                             print(f'loaded {idx} traces of {n_traces}')
                         #df.loc[idx, '1d_array'][df.loc[idx, '1d_array'] == -1] = None
+                    plot_df_samples(df)
                     end_time = time.time()
                     print(f"Time taken to resize&norm: {(end_time - start_time)/60} minutes")
                     start_time = time.time()
@@ -65,7 +65,7 @@ def load_db(folder_path, im_size, load, test):
                     end_time = time.time()
                     print(f"Time taken to save: {(end_time - start_time) / 60} minutes")
                     #df.to_hdf('data.h5', key='df', mode='w')
-                    #plot_df_samples(df)
+
                 if traces_img is None:
                     raise Exception('cant read data file')
 
@@ -73,13 +73,13 @@ def load_db(folder_path, im_size, load, test):
                     raise Exception('cant create image from trace')
                 print('loaded file with id ', file_name)
 
-                if file_name is not None:
-                    names.append(file_name)
-                else:
-                    raise ValueError(f" {file_name} tab is None")
+                #if file_name is not None:
+                #    names.append(file_name)
+                #else:
+                #    raise ValueError(f" {file_name} tab is None")
             except Exception as e:
                 print(f'Exception happened: Error loading file {file_name}: {e}')
-                continue
+                break
 
         if file_names is None:
             raise ValueError("Failed to load db.")
@@ -88,13 +88,14 @@ def load_db(folder_path, im_size, load, test):
     else:
         if not os.path.exists('my_arrays.npz'):
             raise FileNotFoundError('Sample files not found. Set load=True to generate them.')
-        loaded = np.load('my_arrays.npz')
-        traces_img = loaded[0]
-        first_break_line = loaded[1]
-
-        if traces_img is None or first_break_line is None:
+        loaded = np.load('my_arrays.npz', allow_pickle=True)
+        traces_img = loaded['arr1']
+        first_break_lines = loaded['arr2']
+        df = pd.DataFrame({'2d_array': traces_img, '1d_array': first_break_lines})
+        plot_df_samples(df)
+        if traces_img is None or first_break_lines is None:
             raise ValueError("Failed to load traces.")
-    return traces_img, first_break_line
+    return traces_img, first_break_lines
 
 
 

@@ -79,7 +79,7 @@ def plot_df_samples(df):
     num_images = 3
     fig, axes = plt.subplots(1, num_images, figsize=(15, 5))
     for i in range(num_images):
-        bias = 12
+        bias = 0
         # Display the image
         axes[i].imshow(df['2d_array'][i+bias].T, cmap='gray')
 

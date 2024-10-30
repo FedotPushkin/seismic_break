@@ -65,14 +65,13 @@ if __name__ == '__main__':
     else:
         folder_path = 'Halfmile3D'
         try:
-            stps = load_db(folder_path, im_size, load, test)
+            traces_img, first_break_lines = load_db(folder_path, im_size, load, test)
         except Exception as e:
             print(f"Error loading images: {e}")
             raise
 
         if plot_samples:
             show_image_samples(images[:6], sample_ids[:6])
-
 
         Xt1, Xt2, y = create_fit_data(sample_ids, images, stps, forms, truth, im_size)
 
