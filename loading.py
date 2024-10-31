@@ -9,6 +9,7 @@ from tqdm import tqdm
 
 import memory_profiler
 import gc
+
 def valid(arr, i):
     if arr is not None \
             and len(arr) > i > 0 \
@@ -19,7 +20,7 @@ def valid(arr, i):
     else:
         return False
 
-@memory_profiler.profile
+#@memory_profiler.profile
 def load_db(folder_path, load, test, im_width, im_height):
     # List of all *.hdf5 files in folder
     if load:
@@ -55,58 +56,70 @@ def load_db(folder_path, load, test, im_width, im_height):
 
                 n_traces = len(first_break_lines)
                 labels = [*range(n_traces)]
-                df = pd.DataFrame({'2d_array': traces_img, '1d_array': first_break_lines, 'Label': labels})
+                #df = pd.DataFrame({'2d_array': traces_img, '1d_array': first_break_lines, 'Label': labels})
                 start_time = time.time()
-                max_width = 0
-                widths = []
-                for idx, img in tqdm(enumerate(df['2d_array']), total=len(df['2d_array']),
-                                     desc=" Norm images"):
-                    if img.shape[0] < im_width:
-                        padded_image = np.zeros((im_width, img.shape[1]))
-                        padded_image[:, :img.shape[0]] = img
-                        img = padded_image
-                    else:
-                        img = img[:im_width, :]
-                    img = resize(img, (im_width, im_height), anti_aliasing=True)
-                    img_min = img.min()
-                    img_max = img.max()
-                    if img_min == img_max:
-                        raise ZeroDivisionError('Image data is Zero')
-                    else:
-
-                        df.at[idx, '2d_array'] = (img - img_min) / (img_max - img_min)
-                skipped = 0
-                for idx, arr in tqdm(enumerate(df['1d_array']), total=len(df['1d_array']),
+                max_width_f = 0
+                widths_f = []
+                skipped = []
+                for idx, arr in tqdm(enumerate(first_break_lines), total=len(first_break_lines),
                                      desc="Interpolating missing labels"):
                     n_lines = len(arr)
                     if n_lines == 0:
                         raise ValueError('empty first break line')
-                    max_width = max(max_width, n_lines)
-                    widths.append(n_lines)
+                    max_width_f = max(max_width_f, n_lines)
+                    widths_f.append(n_lines)
                     arr[np.isin(arr, [0, -1])] = np.nan
 
                     mask = ~np.isnan(arr)
                     if mask.any():
                         x = np.arange(n_lines)
-                        df.at[idx, '1d_array'] = np.interp(x, x[mask], arr[mask]).astype(int)
+                        first_break_lines[idx] = np.interp(x, x[mask], arr[mask]).astype(int)
                         del x, mask
                     else:
-                        skipped += 1
+                        skipped.append(idx)
                         print(f'skipped  line {idx}, all nans')
                         continue
                     if idx == n_lines-1 or idx == n_lines//2:
                         gc.collect()
 
-
-                    #df.loc[idx, '1d_array'][df.loc[idx, '1d_array'] == -1] = None
                 #plot_df_samples(df)
                 end_time = time.time()
-                print(f"Time taken to resize&norm: {(end_time - start_time)/60:.1f} minutes")
-                print(f"Skipped {skipped}: {skipped/n_lines:.1f} %")
+                print(f"Time taken to interpolate: {(end_time - start_time)/60:.1f} minutes")
+                print(f"Skipped {len(skipped)} lines : {len(skipped)/n_lines:.1f} %")
+
+                filtered_arr1 = [item for idx, item in enumerate(first_break_lines) if idx not in skipped]
+                filtered_arr2 = [item for idx, item in enumerate(traces_img) if idx not in skipped]
+                del first_break_lines, traces_img
+                widths_t = []
+                max_width_t = 0
+                skipped = []
                 start_time = time.time()
-                arr1 = df['2d_array'].to_numpy()
-                arr2 = df['1d_array'].to_numpy()
-                np.savez('my_arrays.npz', arr1=arr1, arr2=arr2, arr3=[max_width])
+                for idx, img in tqdm(enumerate(filtered_arr2), total=len(filtered_arr2),
+                                     desc=" Norm images"):
+                    current_width = img.shape[0]
+                    max_width_f = max(max_width_t, current_width)
+                    widths_t.append(current_width)
+                    if img.shape[0] < im_width:
+                        padded_image = np.zeros((im_width, img.shape[1]))
+                        padded_image[:img.shape[0], :] = img
+                        img = padded_image
+                        del padded_image
+                    else:
+                        img = img[:im_width, :]
+                    #img = resize(img, (im_width, im_height), anti_aliasing=True)
+                    if img.size > 0:
+                        img_min = img.min()
+                        img_max = img.max()
+                    else:
+                        raise ValueError("Image array is empty.")
+                    if img_min == img_max:
+                        raise ZeroDivisionError('Image data is Zero')
+                    else:
+
+                        img -= img_min
+                        img /= (img_max - img_min)
+                        filtered_arr2[idx] = img
+                np.savez('my_arrays.npz', arr1=filtered_arr1, arr2=filtered_arr2, arr3=[max_width_f, max_width_t])
                 end_time = time.time()
                 print(f"Time taken to save: {(end_time - start_time) / 60:.1f} minutes")
                 #df.to_hdf('data.h5', key='df', mode='w')
