@@ -3,13 +3,16 @@ import itertools
 import numpy as np
 import tensorflow as tf
 from visualisation import show_image_samples
+from skimage.transform import resize
 import cv2
 from tqdm import tqdm
 import memory_profiler
 import gc
 
-@memory_profiler.profile
-def build_train_data(traces_img, first_break_lines, im_height, max_width):
+#@memory_profiler.profile
+
+
+def build_train_data(traces_img, first_break_lines,  im_shape, ds_shape):
     if traces_img is None or first_break_lines is None:
         raise ValueError("Input lists must not be None.")
     if len(traces_img) == 0 or len(first_break_lines) == 0:
@@ -20,22 +23,7 @@ def build_train_data(traces_img, first_break_lines, im_height, max_width):
         n_samples = len(first_break_lines)
         masks = []
 
-        for i in tqdm(range(n_samples), desc="Creating masks"):
-            mask = np.zeros((max_width, im_height), dtype=np.uint8)
-            y_line = first_break_lines[i]
-            for x in range(max_width):
-                  # Calculate y value on the line for this x
-                if x < len(y_line):
-                    if 0 <= y_line[x] < im_height:
-                        mask[x, y_line[x]] = 1
-                        mask[x, 0:y_line[x]] = 0
-                        mask[x, y_line[x]+1:] = 2
-                elif x > len(y_line):
-                    mask[x, :] = 0
-            masks.append(mask.T)
-            if len(masks) == 6 and 0:
-                show_image_samples(masks, [*range(6)])
-            del mask
+
 
     return traces_img, masks
 
