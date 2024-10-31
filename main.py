@@ -1,5 +1,5 @@
 import argparse
-#import tensorflow as tf
+import tensorflow as tf
 #import numpy as np
 #import os
 from nn import Unet_NN
@@ -18,17 +18,17 @@ if __name__ == '__main__':
     parser.add_argument('--eval_folder', type=str, help='Path to the eval input file')
 
     args = parser.parse_args()
-    if 0:
-        gpus = tf.config.list_physical_devices('GPU')
-        if gpus:
-            try:
-                for gpu in gpus:
-                    tf.config.experimental.set_memory_growth(gpu, True)
-                print(f'Num GPUs Available: {len(gpus)}')
-            except RuntimeError as e:
-                print(e)
-        else:
-            print("No GPU available. Make sure your TensorFlow installation supports GPU.")
+
+    gpus = tf.config.list_physical_devices('GPU')
+    if gpus:
+        try:
+            for gpu in gpus:
+                tf.config.experimental.set_memory_growth(gpu, True)
+            print(f'Num GPUs Available: {len(gpus)}')
+        except RuntimeError as e:
+            print(e)
+    else:
+        print("No GPU available. Make sure your TensorFlow installation supports GPU.")
 
     fit = args.f
     test = args.t
@@ -36,8 +36,8 @@ if __name__ == '__main__':
     eval_folder = args.eval_folder
     plot_samples = args.plot_samples
     load = args.load
-    im_width = 256
-    im_height = 512
+    train_shape = (64, 192)
+
     test_size = 0.2
 
     if test:
@@ -66,10 +66,10 @@ if __name__ == '__main__':
         show_performance_metrics(np.array(y_true), np.array(y_eval))
     else:
         folder_path = 'Halfmile3D'
-        profiler = cProfile.Profile()
+       # profiler = cProfile.Profile()
 
         try:
-            traces_img, first_break_lines, max_width = load_db(folder_path, load, test, im_width=im_width, im_height=im_height)
+            traces_img, masks = load_db(folder_path, train_shape, load, test)
 
         except Exception as e:
             print(f"Error loading images: {e}")
@@ -77,15 +77,18 @@ if __name__ == '__main__':
 
         #if plot_samples:
         #    show_image_samples(images[:6], sample_ids[:6])
-        profiler.enable()
-        X, y = build_train_data(traces_img, first_break_lines, im_height=im_height, max_width=max_width)
-        profiler.disable()
-        profiler.print_stats(sort='time')
-        model = Unet_NN(input_shape=(im_height, max_width, 1))
+        #profiler.enable()
+
+        #X, y = build_train_data(traces_img, masks,
+        #                        im_shape=train_shape,
+        #                        ds_shape=ds_shape)
+        #profiler.disable()
+        #profiler.print_stats(sort='time')
+        model = Unet_NN(input_shape=(train_shape[0], train_shape[1], 1))
 
         if fit:
-            pass
-            #model.fit_to_data(X, y, batch_size=16, epochs=20, show_perf=True)
+
+            model.fit_to_data(traces_img, masks, batch_size=32, epochs=20, show_perf=True)
 
 
 

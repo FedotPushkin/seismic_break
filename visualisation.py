@@ -30,9 +30,6 @@ def plothistory(history):
     plt.show(block=True)
 
 
-
-
-
 def show_image_samples(images, names):
     if len(images) > 6:
        images = images[:6]
