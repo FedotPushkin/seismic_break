@@ -8,24 +8,56 @@ import cv2
 from tqdm import tqdm
 import memory_profiler
 import gc
-
+import h5py
 #@memory_profiler.profile
 
 
-def build_train_data(traces_img, first_break_lines,  im_shape, ds_shape):
-    if traces_img is None or first_break_lines is None:
-        raise ValueError("Input lists must not be None.")
-    if len(traces_img) == 0 or len(first_break_lines) == 0:
-        raise ValueError("Input lists must not be empty.")
-    if len(traces_img) != len(first_break_lines):
-        raise ValueError("Input lists must have equal shapes.")
-    else:
-        n_samples = len(first_break_lines)
-        masks = []
+def create_tf_dataset_from_hdf5(file_path, batch_size, chunk_size, train_ratio, train_shape):
+    with h5py.File(file_path, 'r') as h5file:
+        # Get the total number of samples
+        total_samples = h5file['array1'].shape[0]
+        train_samples = int(total_samples * train_ratio)
+        test_samples = total_samples-train_samples
 
+        # Create a generator for training data
+        def train_data_generator():
+            for i in range(0, train_samples, chunk_size):
+                X_chunk = h5file['array1'][i:i + chunk_size]
+                y_chunk = h5file['array2'][i:i + chunk_size]
+                y_chunk = tf.keras.utils.to_categorical(y_chunk, num_classes=3)
+                yield (X_chunk, y_chunk)
 
+        # Create a generator for validation data
+        def val_data_generator():
+            for i in range(train_samples, total_samples, chunk_size):
+                X_chunk = h5file['array1'][i:i + chunk_size]
+                y_chunk = h5file['array2'][i:i + chunk_size]
+                y_chunk = tf.keras.utils.to_categorical(y_chunk, num_classes=3)
+                yield (X_chunk, y_chunk)
 
-    return traces_img, masks
+        # Create TensorFlow datasets
+        train_dataset = tf.data.Dataset.from_generator(train_data_generator,
+                                                       output_signature=(
+                                                           tf.TensorSpec(shape=(None, train_shape[0], train_shape[1], 1),
+                                                                         dtype=tf.float32),
+                                                           tf.TensorSpec(shape=(None, train_shape[0], train_shape[1], 3),
+                                                                         dtype=tf.float32)
+                                                       ))
+
+        val_dataset = tf.data.Dataset.from_generator(val_data_generator,
+                                                     output_signature=(
+                                                         tf.TensorSpec(shape=(None, train_shape[0], train_shape[1], 1),
+                                                                       dtype=tf.float32),
+                                                         tf.TensorSpec(shape=(None, train_shape[0], train_shape[1], 3),
+                                                                       dtype=tf.float32)
+                                                     ))
+
+        # Shuffle and batch the datasets
+        train_dataset = train_dataset.shuffle(buffer_size=1000).batch(batch_size).prefetch(
+            buffer_size=tf.data.experimental.AUTOTUNE)
+        val_dataset = val_dataset.batch(batch_size).prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
+
+    return train_dataset, val_dataset, train_samples, test_samples
 
 
 def build_test_data(images, ev_image, im_size):
