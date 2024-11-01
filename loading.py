@@ -1,22 +1,17 @@
 import os
-import numpy as np
+import gc
 import h5py
+import time
+import numpy as np
+from tqdm import tqdm
 from skimage.transform import resize
 from visualisation import plot_train_samples
-import time
-from tqdm import tqdm
-from visualisation import show_mask_samples,show2withaxis,plot_train_sample
+from visualisation import show_mask_samples, show2withaxis, plot_train_sample
 import memory_profiler
-import gc
-import math
-
 
 #@memory_profiler.profile
 
-def resize_array(arr, new_length):
-    original_indices = np.linspace(0, 1, len(arr))
-    new_indices = np.linspace(0, 1, new_length)
-    return np.interp(new_indices, original_indices, arr)
+
 def load_db(folder_path, train_shape, load, test):
     # List of all *.hdf5 files in folder
     if load:
@@ -43,8 +38,8 @@ def load_db(folder_path, train_shape, load, test):
                     raise ValueError('samp rate not constant')
                 if not np.all(samp_num_arr == samp_num_arr[0]):
                     raise ValueError('samp num not constant')
-                samp_rate = samp_rate_arr[0]
 
+                samp_rate = samp_rate_arr[0]
                 ds_height = samp_num_arr[0]
                 pivots = []
                 pivots2 = []
@@ -60,9 +55,7 @@ def load_db(folder_path, train_shape, load, test):
                 first_break_split = np.split(f_break, pivots, axis=0)
                 first_break_lines = [arr.flatten().astype(float) for arr in first_break_split]
                 del f_break, data_arr, rec_x, samp_rate_arr, samp_num_arr
-                #n_traces = len(first_break_lines)
 
-                #df = pd.DataFrame({'2d_array': traces_img, '1d_array': first_break_lines, 'Label': labels})
                 start_time = time.time()
                 max_width_f = 0
                 widths_f = []

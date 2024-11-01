@@ -1,12 +1,9 @@
 import argparse
 import tensorflow as tf
-#import numpy as np
-#import os
 from nn import Unet_NN
 import cProfile
 from build_data import build_train_data, build_test_data
 from loading import load_db
-#from visualisation import show_image_samples, show_performance_metrics, make_predictions
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='First Break detection')
@@ -37,7 +34,6 @@ if __name__ == '__main__':
     plot_samples = args.plot_samples
     load = args.load
     train_shape = (64, 192)
-
     test_size = 0.2
 
     if fit:
@@ -65,7 +61,7 @@ if __name__ == '__main__':
 
         if fit:
 
-            model.fit_to_data(traces_img, masks, batch_size=16, epochs=20, show_perf=False)
+            model.fit_to_data(traces_img, masks, batch_size=16, epochs=20, show_perf=True)
 
 
 
