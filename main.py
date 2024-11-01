@@ -38,11 +38,10 @@ if __name__ == '__main__':
 
     if fit:
 
-        folder_path = 'Halfmile3D'
        # profiler = cProfile.Profile()
 
         try:
-            traces_img, masks = load_db(folder_path, train_shape, load, test)
+            traces_img, masks = load_db(folder, train_shape, load, test)
 
         except Exception as e:
             print(f"Error loading images: {e}")
