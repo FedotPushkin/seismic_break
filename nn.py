@@ -9,7 +9,7 @@ from visualisation import show_performance_metrics, make_predictions
 from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from keras_unet_collection.models import unet_3plus_2d
 from sklearn.model_selection import train_test_split
-
+from tensorflow_addons.losses import SigmoidFocalCrossEntropy
 
 class Unet_NN:
 
@@ -28,9 +28,9 @@ class Unet_NN:
 
         model = unet_3plus_2d(
                              input_size=input_shape,
-                             filter_num_down=[64, 128, 256, 512, 1024],
+                             filter_num_down=[32, 64, 128],
                              filter_num_skip='auto',
-                             filter_num_aggregate=160,
+                             filter_num_aggregate=96,
                              stack_num_down=2,
                              stack_num_up=1,
                              activation='ReLU',
@@ -41,10 +41,13 @@ class Unet_NN:
                              deep_supervision=True,
                              n_labels=1,)
 
-        num_classes = 3
+        def dice_coefficient(y_true, y_pred, smooth=1):
+            intersection = tf.reduce_sum(y_true * y_pred)
+            return (2. * intersection + smooth) / (tf.reduce_sum(y_true) + tf.reduce_sum(y_pred) + smooth)
+
         model.compile(optimizer='adam',
-                      loss='categorical_crossentropy' if num_classes > 1 else 'binary_crossentropy',
-                      metrics=['accuracy'])
+                      loss=SigmoidFocalCrossEntropy(),
+                      metrics=dice_coefficient)
 
         return model
 
@@ -62,24 +65,25 @@ class Unet_NN:
                                                        verbose=1,
                                                        restore_best_weights=True
                                                        )
-            dataset = tf.data.Dataset.from_tensor_slices((X_train, y_train))\
-                .batch(batch_size).prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
-            val_set = tf.data.Dataset.from_tensor_slices((X_test, y_test)).batch(batch_size)\
-                .prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
+            dataset = tf.data.Dataset.from_tensor_slices((X_train, y_train))
+            dataset = dataset.repeat()  # Repeat for indefinite training
+            dataset = dataset.batch(batch_size).prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
+            val_set = tf.data.Dataset.from_tensor_slices((X_test, y_test)).batch(batch_size).\
+                batch(batch_size).prefetch(buffer_size=tf.data.experimental.AUTOTUNE).repeat()
 
             self.history = self.model.fit(dataset,
                                           validation_data=val_set,
                                           epochs=epochs,
-                                          steps_per_epoch=len(y_train) // batch_size,
-                                          validation_steps=len(y_test) // batch_size,
-                                          callbacks=[early_stop])
+                                          steps_per_epoch=y_train.shape[0] // batch_size,
+                                          validation_steps=y_test.shape[0] // batch_size,)
+                                          #callbacks=[early_stop])
 
             self.model.save(f'models/Unet3Plus_model.h5')
 
             gc.collect()
         if self.history is not None:
             if show_perf:
-                plothistory(self.history.history)
+                plothistory(self.history.history,)
                 y_pred = make_predictions(X_test)
                 show_performance_metrics(self.y_test, y_pred)
 
