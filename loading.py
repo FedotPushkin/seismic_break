@@ -246,22 +246,21 @@ def load_db(folder_path, train_shape, load, test,batch_size):
 
         if file_names is None:
             raise ValueError("Failed to load db.")
-        return
-    else:
-        if not os.path.exists('train_dataset.hdf5'):
-            raise FileNotFoundError('Sample files not found. Set load=True to generate them.')
-        dataset, val_dataset, train_samples, test_samples = create_tf_dataset_from_hdf5('test_dataset',
-                                                           batch_size=batch_size,
-                                                           chunk_size=chunk_size,
-                                                           train_ratio=0.8,
-                                                           train_shape=train_shape)
-        #loaded = np.load(f'_chunk{i}.npz', allow_pickle=True)
-        #masks = loaded['arr1']
-        #traces_img = loaded['arr2']
-        #plot_train_samples(traces_img[:36], masks[:36], train_shape)
-        #if traces_img is None or masks is None:
-        #    raise ValueError("Failed to load traces.")
-        return dataset, val_dataset, train_samples, test_samples
+
+    if not os.path.exists('train_dataset.hdf5'):
+        raise FileNotFoundError('Sample files not found. Set load=True to generate them.')
+    dataset, val_dataset, train_samples, test_samples = create_tf_dataset_from_hdf5('test_dataset',
+                                                       batch_size=batch_size,
+                                                       chunk_size=chunk_size,
+                                                       train_ratio=0.8,
+                                                       train_shape=train_shape)
+    #loaded = np.load(f'_chunk{i}.npz', allow_pickle=True)
+    #masks = loaded['arr1']
+    #traces_img = loaded['arr2']
+    #plot_train_samples(traces_img[:36], masks[:36], train_shape)
+    #if traces_img is None or masks is None:
+    #    raise ValueError("Failed to load traces.")
+    return dataset, val_dataset, train_samples, test_samples
 
 
 
