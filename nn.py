@@ -52,9 +52,9 @@ class Unet_NN:
 
         return model
 
-    def fit_to_data(self, X, y, batch_size, epochs, show_perf):
+    def fit_to_data(self, dataset, val_dataset, batch_size, epochs, show_perf,train_samples, test_samples):
 
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+       # X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
         with tf.device('/GPU:0'):
             gc.collect()
 
@@ -67,18 +67,18 @@ class Unet_NN:
                                                        restore_best_weights=True
                                                        )
 
-            y_train = tf.keras.utils.to_categorical(y_train, num_classes=3)
-            y_test = tf.keras.utils.to_categorical(y_test, num_classes=3)
-            dataset = tf.data.Dataset.from_tensor_slices((X_train, y_train))
-            dataset = dataset .shuffle(buffer_size=100).batch(batch_size).repeat().prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
-            val_set = tf.data.Dataset.from_tensor_slices((X_test, y_test)).batch(batch_size).repeat().\
-                prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
+            #y_train = tf.keras.utils.to_categorical(y_train, num_classes=3)
+            #y_test = tf.keras.utils.to_categorical(y_test, num_classes=3)
+            #dataset = tf.data.Dataset.from_tensor_slices((X_train, y_train))
+            #dataset = dataset .shuffle(buffer_size=100).batch(batch_size).repeat().prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
+            #val_set = tf.data.Dataset.from_tensor_slices((X_test, y_test)).batch(batch_size).repeat().\
+            #    prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
 
             self.history = self.model.fit(dataset,
-                                          validation_data=val_set,
+                                          validation_data=val_dataset,
                                           epochs=epochs,
-                                          steps_per_epoch=y_train.shape[0] // batch_size,
-                                          validation_steps=y_test.shape[0] // batch_size,
+                                          steps_per_epoch=train_samples // batch_size,
+                                          validation_steps=test_samples // batch_size,
                                           callbacks=[early_stop])
 
             self.model.save(f'models/Unet3Plus_model.h5')
@@ -87,6 +87,6 @@ class Unet_NN:
         if self.history is not None:
             if show_perf:
                 plothistory(self.history.history,)
-                y_pred = make_predictions(X_test)
-                show_performance_metrics(self.y_test, y_pred)
+                #y_pred = make_predictions(X_test)
+                #show_performance_metrics(self.y_test, y_pred)
 
