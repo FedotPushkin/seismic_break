@@ -10,7 +10,8 @@ from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from keras_unet_collection.models import unet_3plus_2d
 from sklearn.model_selection import train_test_split
 from tensorflow_addons.losses import SigmoidFocalCrossEntropy
-
+from segmentation_models.metrics import IOUScore
+from segmentation_models.losses import DiceLoss, JaccardLoss
 class Unet_NN:
 
     def __init__(self, input_shape):
@@ -46,8 +47,8 @@ class Unet_NN:
             return (2. * intersection + smooth) / (tf.reduce_sum(y_true) + tf.reduce_sum(y_pred) + smooth)
 
         model.compile(optimizer='adam',
-                      loss=SigmoidFocalCrossEntropy(),
-                      metrics=dice_coefficient)
+                      loss=JaccardLoss(),
+                      metrics=IOUScore())
 
         return model
 
@@ -66,8 +67,7 @@ class Unet_NN:
                                                        restore_best_weights=True
                                                        )
             dataset = tf.data.Dataset.from_tensor_slices((X_train, y_train))
-            dataset = dataset.repeat()  # Repeat for indefinite training
-            dataset = dataset.batch(batch_size).prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
+            dataset = dataset.batch(batch_size).repeat().prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
             val_set = tf.data.Dataset.from_tensor_slices((X_test, y_test)).batch(batch_size).\
                 batch(batch_size).prefetch(buffer_size=tf.data.experimental.AUTOTUNE).repeat()
 

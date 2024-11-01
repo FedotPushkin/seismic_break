@@ -58,7 +58,7 @@ def plot_train_samples(arrayX, arrayY,train_shape):
     fig, axs = plt.subplots(num_plots, 2, figsize=(10, num_plots * 3))
     arrayX = np.reshape(arrayX, (len(arrayX), train_shape[0], train_shape[1]))
     arrayY = np.reshape(arrayY, (len(arrayY), train_shape[0], train_shape[1]))
-    bias = 0
+    bias = 3
     # Loop through the arrays and plot them
     for i in range(num_plots):
         y_indices, x_indices = np.where(arrayY[i+bias] == 1)
