@@ -61,7 +61,7 @@ class Unet_NN:
             if not os.path.exists('models'):
                 os.makedirs('models')
 
-            early_stop = keras.callbacks.EarlyStopping(monitor='val_loss',
+            early_stop = keras.callbacks.EarlyStopping(monitor='val_unet3plus_output_final_activation_loss',
                                                        patience=5,
                                                        verbose=1,
                                                        restore_best_weights=True
@@ -74,13 +74,12 @@ class Unet_NN:
             val_set = tf.data.Dataset.from_tensor_slices((X_test, y_test)).batch(batch_size).repeat().\
                 prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
 
-            self.history = self.model.fit(dataset,#X_train, y_train ,
-                                          validation_data=val_set,#(X_test, y_test),#
+            self.history = self.model.fit(dataset,
+                                          validation_data=val_set,
                                           epochs=epochs,
-                                          #batch_size = 16,
                                           steps_per_epoch=y_train.shape[0] // batch_size,
-                                          validation_steps=y_test.shape[0] // batch_size,)
-                                          #callbacks=[early_stop])
+                                          validation_steps=y_test.shape[0] // batch_size,
+                                          callbacks=[early_stop])
 
             self.model.save(f'models/Unet3Plus_model.h5')
 
