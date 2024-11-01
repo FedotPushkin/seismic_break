@@ -10,8 +10,10 @@ from tensorflow.keras.preprocessing.image import ImageDataGenerator
 from keras_unet_collection.models import unet_3plus_2d
 from sklearn.model_selection import train_test_split
 from tensorflow_addons.losses import SigmoidFocalCrossEntropy
-from segmentation_models.metrics import IOUScore
-from segmentation_models.losses import DiceLoss, JaccardLoss
+from segmentation_models.metrics import IOUScore, Precision, Recall
+from segmentation_models.losses import DiceLoss, JaccardLoss, CategoricalFocalLoss
+
+
 class Unet_NN:
 
     def __init__(self, input_shape):
@@ -31,7 +33,7 @@ class Unet_NN:
                              input_size=input_shape,
                              filter_num_down=[32, 64, 128],
                              filter_num_skip='auto',
-                             filter_num_aggregate=96,
+                             filter_num_aggregate=160,
                              stack_num_down=2,
                              stack_num_up=1,
                              activation='ReLU',
@@ -40,15 +42,13 @@ class Unet_NN:
                              pool='max',
                              unpool='bilinear',
                              deep_supervision=True,
-                             n_labels=1,)
+                             n_labels=3,)
 
-        def dice_coefficient(y_true, y_pred, smooth=1):
-            intersection = tf.reduce_sum(y_true * y_pred)
-            return (2. * intersection + smooth) / (tf.reduce_sum(y_true) + tf.reduce_sum(y_pred) + smooth)
-
+        loss_fn = DiceLoss(class_weights=[1.0, 10.0, 1.0]) + CategoricalFocalLoss(gamma=2.0)
+        metrics = [IOUScore(class_indexes=[0, 1, 2]), Precision(class_indexes=[1]), Recall(class_indexes=[1])]
         model.compile(optimizer='adam',
-                      loss=JaccardLoss(),
-                      metrics=IOUScore())
+                      loss=loss_fn,
+                      metrics=metrics)
 
         return model
 
@@ -66,14 +66,18 @@ class Unet_NN:
                                                        verbose=1,
                                                        restore_best_weights=True
                                                        )
-            dataset = tf.data.Dataset.from_tensor_slices((X_train, y_train))
-            dataset = dataset.batch(batch_size).repeat().prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
-            val_set = tf.data.Dataset.from_tensor_slices((X_test, y_test)).batch(batch_size).\
-                batch(batch_size).prefetch(buffer_size=tf.data.experimental.AUTOTUNE).repeat()
 
-            self.history = self.model.fit(dataset,
-                                          validation_data=val_set,
+            y_train = tf.keras.utils.to_categorical(y_train, num_classes=3)
+            y_test = tf.keras.utils.to_categorical(y_test, num_classes=3)
+            dataset = tf.data.Dataset.from_tensor_slices((X_train, y_train))
+            dataset = dataset .shuffle(buffer_size=100).batch(batch_size).repeat().prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
+            val_set = tf.data.Dataset.from_tensor_slices((X_test, y_test)).batch(batch_size).repeat().\
+                prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
+
+            self.history = self.model.fit(dataset,#X_train, y_train ,
+                                          validation_data=val_set,#(X_test, y_test),#
                                           epochs=epochs,
+                                          #batch_size = 16,
                                           steps_per_epoch=y_train.shape[0] // batch_size,
                                           validation_steps=y_test.shape[0] // batch_size,)
                                           #callbacks=[early_stop])
