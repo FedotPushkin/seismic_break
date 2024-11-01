@@ -8,7 +8,7 @@ from skimage.transform import resize
 from visualisation import plot_train_samples
 from visualisation import show_mask_samples, show2withaxis, plot_train_sample
 import memory_profiler
-
+from build_data import create_tf_dataset_from_hdf5
 #@memory_profiler.profile
 
 
@@ -34,10 +34,11 @@ def drop_train_data_to_file(masks, traces_img):
     print("New arrays added to HDF5 file successfully.")
 
 
-def load_db(folder_path, train_shape, load, test):
+def load_db(folder_path, train_shape, load, test,batch_size):
+    chunk_size = 1100000
     # List of all *.hdf5 files in folder
     if load:
-        chunk_size = 1100000
+
         file_names = [f for f in os.listdir(folder_path) if f.endswith('.hdf5')]
         if not file_names:
             raise ValueError("No .hdf5 files found in the specified folder.")
@@ -230,7 +231,7 @@ def load_db(folder_path, train_shape, load, test):
                         raise Exception('cant create image from trace')
 
                     drop_train_data_to_file(masks=masks, traces_img=traces_img)
-
+                    del masks, traces_img
                     end_time = time.time()
                     print(f"Time taken to save: {(end_time - start_time) / 60:.1f} minutes")
                     print(f'loaded file with id { file_name} chunk_{i}')
@@ -245,18 +246,22 @@ def load_db(folder_path, train_shape, load, test):
 
         if file_names is None:
             raise ValueError("Failed to load db.")
-        if not test:
-            pass
+        return
     else:
-        if not os.path.exists('my_arrays.npz'):
+        if not os.path.exists('train_dataset.hdf5'):
             raise FileNotFoundError('Sample files not found. Set load=True to generate them.')
+        dataset, val_dataset, train_samples, test_samples = create_tf_dataset_from_hdf5('test_dataset',
+                                                           batch_size=batch_size,
+                                                           chunk_size=chunk_size,
+                                                           train_ratio=0.8,
+                                                           train_shape=train_shape)
         #loaded = np.load(f'_chunk{i}.npz', allow_pickle=True)
         #masks = loaded['arr1']
         #traces_img = loaded['arr2']
         #plot_train_samples(traces_img[:36], masks[:36], train_shape)
         #if traces_img is None or masks is None:
         #    raise ValueError("Failed to load traces.")
-    return traces_img, masks
+        return dataset, val_dataset, train_samples, test_samples
 
 
 
