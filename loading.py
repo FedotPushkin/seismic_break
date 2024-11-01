@@ -96,58 +96,93 @@ def load_db(folder_path, train_shape, load, test):
                 filtered_arr1 = [item for idx, item in enumerate(first_break_lines) if idx not in skipped]
 
                 filtered_arr2 = [item for idx, item in enumerate(traces_img) if idx not in skipped]
+
                 coef = (1000 / samp_rate).astype(np.float64)
+                coef_y = train_shape[1] / ds_height
                 masks = []
-                plot_train_sample(filtered_arr2[0], filtered_arr1[0] * 0.5)
-                for i, arr in tqdm(enumerate(filtered_arr1), desc="Creating masks"):
+                #plot_train_sample(filtered_arr2[0], filtered_arr1[0] * 0.5)
+
+                for idx, arr in tqdm(enumerate(filtered_arr1), desc="Creating masks"):
                     if arr.shape[0] == 0 or arr.shape[0] > max_width_f:
                         raise ValueError('array larger then max_width')
-                    elif arr.shape[0] < max_width_f:
+                    elif 0 < arr.shape[0] <= max_width_f:
 
                         max_y = max(arr)
-                        y_line_norm = arr / max_y
-                        num_zeros = max_width_f - arr.shape[0]
-                        num_zeros_resized = math.ceil(num_zeros*train_shape[0]/max_width_f)
-                        y_line_resized = resize(y_line_norm, (train_shape[0]-num_zeros_resized,), anti_aliasing=True)*max_y
-                        filtered_arr1[i] = np.concatenate((y_line_resized, np.zeros(num_zeros_resized)))
-                    y_line_resized = (filtered_arr1[i] * coef * train_shape[1] / ds_height).astype(int)
+                        min_y = min(arr)
+                        if min_y != max_y:
 
-                    mask = np.zeros(train_shape, dtype=np.uint8)
-                    for x in range(train_shape[0]):
-                        # Calculate y value on the line for this x
-                        if 0 < y_line_resized[x] < train_shape[1]:
-                            mask[x, y_line_resized[x]] = 1
-                            mask[x, 0:y_line_resized[x]] = 0
-                            mask[x, y_line_resized[x] + 1:] = 2
-                        elif y_line_resized[x] == 0:
-                            mask[ y_line_resized[x],x] = 0
+                            y_line_norm = (arr-min_y) / (max_y-min_y)
+                            new_len = round(arr.shape[0]*train_shape[0]/max_width_f)
+                            num_zeros_resized = train_shape[0] - new_len
+
+                            y_line_resized = resize(y_line_norm, (new_len,), anti_aliasing=True)
+
+                            max_yr = max(y_line_resized)
+                            min_yr = min(y_line_resized)
+
+                            y_line_resized = (y_line_resized - min_yr)/(max_yr - min_yr)
+                            y_line_resized = y_line_resized * (max_y - min_y) + min_y
+
+                            y_line_resized = np.concatenate((y_line_resized, np.zeros(num_zeros_resized, dtype=np.float32)))
+                            filtered_arr1[idx] = (y_line_resized * coef * coef_y).astype(int)
                         else:
+
+                            if len(arr) <= train_shape[0]:
+                                num_zeros_resized = train_shape[0] - len(arr)
+                                filtered_arr1[idx] = (np.concatenate((arr, np.zeros(num_zeros_resized, dtype=np.float32))) * coef * coef_y).astype(int)
+                            else:
+                                filtered_arr1[idx] = (arr[:train_shape[0]] * coef * coef_y).astype(int)
+                                #raise ValueError('arr longer then max_width_f')
+                    else:
+                        raise ValueError('arr longer then max_width_f')
+
+                    #max_yr = max(y_line_resized)
+                    min_yr = min(y_line_resized)
+                    if min_yr < 0:
+                        raise ValueError('negative ')
+                    #print(min_yr, max_yr)
+                    y_line_resized = filtered_arr1[idx]
+                    mask = np.zeros(train_shape, dtype=np.float32)
+                    if len(y_line_resized) < 1 or len(y_line_resized) > train_shape[0]:
+                        raise ValueError('mask array out of range')
+                    for x in range(train_shape[0]):
+                        y_of_train_shape = y_line_resized[x]
+                        # Calculate y value on the line for this x
+                        if 0 < y_of_train_shape < train_shape[1]:
+                            mask[x, y_of_train_shape] = 1
+                            #mask[x, 0:y_train_shape] = 0
+                            mask[x, y_of_train_shape + 1:] = 2
+                        elif y_of_train_shape == 0:
+                            continue
+                        elif y_of_train_shape >= train_shape[1]:
                             raise ValueError('mask array out of range')
 
-                    #mask = resize(mask, train_shape, anti_aliasing=True)
                     masks.append(mask)
                     if len(masks) == 6:
                         show_mask_samples(masks, [*range(6)])
                     del mask
 
-                max_width_t = 0
+
                 start_time = time.time()
 
                 for idx, img in tqdm(enumerate(filtered_arr2), total=len(filtered_arr2),
                                      desc=" Norm images"):
                     current_width = img.shape[0]
-                    max_width_f = max(max_width_t, current_width)
+                    if max_width_f < current_width:
+                        raise ValueError('img shape error')
                     #widths_t.append(current_width)
+                    new_width = int(round((train_shape[0]*current_width/max_width_f)))
+                    img = resize(img, (new_width, train_shape[1]), anti_aliasing=True)
                     if img.shape[0] < max_width_f:
-                        padded_image = np.zeros((max_width_f, img.shape[1]))
+                        padded_image = np.zeros(train_shape, dtype=np.float32)
                         padded_image[:img.shape[0], :] = img
                         img = padded_image
                         del padded_image
                     else:
                         img = img[:max_width_f, :]
-                    if img.shape[0] != max_width_f or img.shape[1] != ds_height:
+                    if img.shape != train_shape:
                         raise ValueError('img size unexpected')
-                    img = resize(img, train_shape, anti_aliasing=True)
+
                     if img.size > 0:
                         img_min = img.min()
                         img_max = img.max()
@@ -164,10 +199,16 @@ def load_db(folder_path, train_shape, load, test):
                 for f in filtered_arr2:
                     shape_arr0.append(f.shape[0])
                     shape_arr1.append(f.shape[1])
-                print(max(shape_arr0), min(shape_arr0), np.mean(shape_arr0))
+                print('before reshape', max(shape_arr0), min(shape_arr0), np.mean(shape_arr0))
                 print(max(shape_arr1), min(shape_arr1), np.mean(shape_arr1))
                 traces_img = np.reshape(filtered_arr2, (len(filtered_arr2), train_shape[0], train_shape[1], 1))
                 masks = np.reshape(masks, (len(masks), train_shape[0], train_shape[1], 1))
+                shape_arr0, shape_arr1 = [], []
+                for f in masks:
+                    shape_arr0.append(f.shape[0])
+                    shape_arr1.append(f.shape[1])
+                print('after reshape',max(shape_arr0), min(shape_arr0), np.mean(shape_arr0))
+                print(max(shape_arr1), min(shape_arr1), np.mean(shape_arr1))
                 del first_break_lines, filtered_arr2
                 gc.collect()
                 plot_train_samples(traces_img[:36], masks[:36], train_shape)
