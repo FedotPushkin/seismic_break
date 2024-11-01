@@ -2,17 +2,21 @@ import os
 import numpy as np
 import h5py
 from skimage.transform import resize
-from visualisation import plot_df_samples
+from visualisation import plot_train_samples
 import time
 from tqdm import tqdm
-from visualisation import show_image_samples
+from visualisation import show_mask_samples,show2withaxis,plot_train_sample
 import memory_profiler
 import gc
+import math
 
 
 #@memory_profiler.profile
 
-
+def resize_array(arr, new_length):
+    original_indices = np.linspace(0, 1, len(arr))
+    new_indices = np.linspace(0, 1, new_length)
+    return np.interp(new_indices, original_indices, arr)
 def load_db(folder_path, train_shape, load, test):
     # List of all *.hdf5 files in folder
     if load:
@@ -34,6 +38,7 @@ def load_db(folder_path, train_shape, load, test):
                 samp_rate_arr = np.array(samp_rate_arr).flatten()
                 samp_num_arr = np.array(samp_num_arr).flatten()
 
+                #plot_train_sample(data_arr[:171], f_break[:171]*0.5)
                 if not np.all(samp_rate_arr == samp_rate_arr[0]):
                     raise ValueError('samp rate not constant')
                 if not np.all(samp_num_arr == samp_num_arr[0]):
@@ -92,36 +97,38 @@ def load_db(folder_path, train_shape, load, test):
 
                 filtered_arr2 = [item for idx, item in enumerate(traces_img) if idx not in skipped]
                 coef = (1000 / samp_rate).astype(np.float64)
-                for i, arr in enumerate(filtered_arr1):
-
-                    if arr.shape[0] < max_width_f:
-                        num_zeros = max_width_f - arr.shape[0]
-                        arr_c = np.concatenate((filtered_arr1[i], np.zeros(num_zeros)))*coef
-                        filtered_arr1[i] = arr_c
-                    else:
-                        filtered_arr1[i] = filtered_arr1[i]*coef
-
-
                 masks = []
-                for i in tqdm(range(len(filtered_arr1)), desc="Creating masks"):
+                plot_train_sample(filtered_arr2[0], filtered_arr1[0] * 0.5)
+                for i, arr in tqdm(enumerate(filtered_arr1), desc="Creating masks"):
+                    if arr.shape[0] == 0 or arr.shape[0] > max_width_f:
+                        raise ValueError('array larger then max_width')
+                    elif arr.shape[0] < max_width_f:
 
-                    y_line = filtered_arr1[i].astype(int)
+                        max_y = max(arr)
+                        y_line_norm = arr / max_y
+                        num_zeros = max_width_f - arr.shape[0]
+                        num_zeros_resized = math.ceil(num_zeros*train_shape[0]/max_width_f)
+                        y_line_resized = resize(y_line_norm, (train_shape[0]-num_zeros_resized,), anti_aliasing=True)*max_y
+                        filtered_arr1[i] = np.concatenate((y_line_resized, np.zeros(num_zeros_resized)))
+                    y_line_resized = (filtered_arr1[i] * coef * train_shape[1] / ds_height).astype(int)
 
-                    mask = np.zeros((max_width_f, ds_height), dtype=np.uint8)
-                    for x in range(max_width_f):
+                    mask = np.zeros(train_shape, dtype=np.uint8)
+                    for x in range(train_shape[0]):
                         # Calculate y value on the line for this x
-                        if y_line[x] < ds_height:
-                            mask[x, y_line[x]] = 1
-                            mask[x, 0:y_line[x]] = 0
-                            mask[x, y_line[x] + 1:] = 2
+                        if 0 < y_line_resized[x] < train_shape[1]:
+                            mask[x, y_line_resized[x]] = 1
+                            mask[x, 0:y_line_resized[x]] = 0
+                            mask[x, y_line_resized[x] + 1:] = 2
+                        elif y_line_resized[x] == 0:
+                            mask[ y_line_resized[x],x] = 0
                         else:
-                            print(y_line[x])
+                            raise ValueError('mask array out of range')
 
-                    mask = resize(mask, train_shape, anti_aliasing=True)
+                    #mask = resize(mask, train_shape, anti_aliasing=True)
                     masks.append(mask)
-                if len(masks) == 6:
-                    show_image_samples(masks, [*range(6)])
-                del mask, y_line
+                    if len(masks) == 6:
+                        show_mask_samples(masks, [*range(6)])
+                    del mask
 
                 max_width_t = 0
                 start_time = time.time()
@@ -138,6 +145,8 @@ def load_db(folder_path, train_shape, load, test):
                         del padded_image
                     else:
                         img = img[:max_width_f, :]
+                    if img.shape[0] != max_width_f or img.shape[1] != ds_height:
+                        raise ValueError('img size unexpected')
                     img = resize(img, train_shape, anti_aliasing=True)
                     if img.size > 0:
                         img_min = img.min()
@@ -161,6 +170,7 @@ def load_db(folder_path, train_shape, load, test):
                 masks = np.reshape(masks, (len(masks), train_shape[0], train_shape[1], 1))
                 del first_break_lines, filtered_arr2
                 gc.collect()
+                plot_train_samples(traces_img[:36], masks[:36], train_shape)
                 print('saving to array, this will take a while')
                 if masks is None or traces_img is None:
                     raise Exception('cant create image from trace')
@@ -189,7 +199,7 @@ def load_db(folder_path, train_shape, load, test):
         loaded = np.load('my_arrays.npz', allow_pickle=True)
         masks = loaded['arr1']
         traces_img = loaded['arr2']
-        #plot_df_samples(df)
+        plot_train_samples(traces_img[:36], masks[:36], train_shape)
         if traces_img is None or masks is None:
             raise ValueError("Failed to load traces.")
     return traces_img, masks
