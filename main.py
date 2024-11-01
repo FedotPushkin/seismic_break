@@ -2,7 +2,7 @@ import argparse
 import tensorflow as tf
 from nn import Unet_NN
 import cProfile
-from build_data import build_train_data, build_test_data
+#from build_data import build_train_data, build_test_data
 from loading import load_db
 
 if __name__ == '__main__':
@@ -35,13 +35,13 @@ if __name__ == '__main__':
     load = args.load
     train_shape = (64, 192)
     test_size = 0.2
-
+    batch_size = 32
     if fit:
 
        # profiler = cProfile.Profile()
 
         try:
-            traces_img, masks = load_db(folder, train_shape, load, test)
+            dataset, val_dataset, train_samples, test_samples = load_db(folder, train_shape, load, test, batch_size=batch_size)
 
         except Exception as e:
             print(f"Error loading images: {e}")
@@ -58,9 +58,9 @@ if __name__ == '__main__':
         #profiler.print_stats(sort='time')
         model = Unet_NN(input_shape=(train_shape[0], train_shape[1], 1))
 
-        if fit:
+        if fit and not load:
 
-            model.fit_to_data(traces_img, masks, batch_size=16, epochs=20, show_perf=True)
+            model.fit_to_data(dataset, val_dataset, batch_size=batch_size, epochs=20, show_perf=True, train_size=train_samples, test_size=test_samples)
 
 
 
