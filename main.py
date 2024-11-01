@@ -58,9 +58,14 @@ if __name__ == '__main__':
         #profiler.print_stats(sort='time')
         model = Unet_NN(input_shape=(train_shape[0], train_shape[1], 1))
 
-        if fit and not load:
+        if fit:
 
-            model.fit_to_data(dataset, val_dataset, batch_size=batch_size, epochs=20, show_perf=True, train_size=train_samples, test_size=test_samples)
+            model.fit_to_data(dataset, val_dataset,
+                              batch_size=batch_size,
+                              epochs=20,
+                              show_perf=True,
+                              train_size=train_samples,
+                              test_size=test_samples)
 
 
 
