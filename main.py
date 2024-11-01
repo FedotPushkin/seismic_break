@@ -88,7 +88,7 @@ if __name__ == '__main__':
 
         if fit:
 
-            model.fit_to_data(traces_img, masks, batch_size=32, epochs=20, show_perf=True)
+            model.fit_to_data(traces_img, masks, batch_size=16, epochs=20, show_perf=False)
 
 
 

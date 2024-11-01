@@ -2,7 +2,7 @@ import pandas as pd
 import itertools
 import numpy as np
 import tensorflow as tf
-from visualisation import show_image_samples
+from visualisation import show_mask_samples
 from skimage.transform import resize
 import cv2
 from tqdm import tqdm

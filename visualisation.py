@@ -30,7 +30,7 @@ def plothistory(history):
     plt.show(block=True)
 
 
-def show_image_samples(images, names):
+def show_mask_samples(images, names):
     if len(images) > 6:
        images = images[:6]
     if len(images) > 2:
@@ -53,20 +53,43 @@ def show_image_samples(images, names):
     plt.show(block=True)
 
 
-def plot_df_samples(df):
-    num_images = 3
-    fig, axes = plt.subplots(1, num_images, figsize=(15, 5))
-    for i in range(num_images):
-        bias = 0
-        # Display the image
-        axes[i].imshow(df['2d_array'][i+bias].T, cmap='gray')
+def plot_train_samples(arrayX, arrayY,train_shape):
+    num_plots = 3
+    fig, axs = plt.subplots(num_plots, 2, figsize=(10, num_plots * 3))
+    arrayX = np.reshape(arrayX, (len(arrayX), train_shape[0], train_shape[1]))
+    arrayY = np.reshape(arrayY, (len(arrayY), train_shape[0], train_shape[1]))
+    bias = 0
+    # Loop through the arrays and plot them
+    for i in range(num_plots):
+        y_indices, x_indices = np.where(arrayY[i+bias] == 1)
+        axs[i, 0].imshow(arrayX[i+bias], cmap='seismic', aspect='auto')  # Left column
+        axs[i, 0].set_title(f'Array X {i + 1}')
+        axs[i, 0].axis('off')  # Hide axes
+        if len(x_indices) > 0:
+            axs[i, 0].plot(x_indices, y_indices, 'ro', markersize=2)
 
-        # Plot the corresponding line
-        axes[i].plot(df['1d_array'][i+bias], color='red', linewidth=1)
+        axs[i, 1].imshow(arrayY[i+bias], cmap='seismic', aspect='auto')  # Right column
+        axs[i, 1].set_title(f'Array Y {i + 1}')
+        axs[i, 1].axis('off')  # Hide axes
 
-        # Set title or labels if needed
-        axes[i].set_title(f'Image {i+bias + 1}')
-        axes[i].axis('off')  # Hide axes ticks
+    # Adjust layout
+    plt.tight_layout()
+    plt.show(block=True)
+
+
+def plot_train_sample(arrayX, arrayY):
+
+    plt.subplots(1, figsize=(10, 10))
+
+    bias = 0
+    plt.imshow(arrayX, cmap='seismic', aspect='auto')  # Left column
+    plt.title(f'Array X ')
+
+    x_indices = np.linspace(0, len(arrayY), len(arrayY))
+    plt.plot( arrayY.flatten(),x_indices, 'ro', markersize=2)
+
+    #plt.imshow(arrayY, cmap='seismic', aspect='auto')  # Right column
+    #plt.title(f'Array Y ')
 
     # Adjust layout
     plt.tight_layout()
@@ -96,3 +119,26 @@ def show_performance_metrics(y, y_pred):
 
     else:
         raise ValueError('empty argument recieved')
+
+
+def show2withaxis(a, b):
+    plt.figure(figsize=(10, 5))
+    xa = np.linspace(0, len(a), len(a))
+    xb = np.linspace(0, len(b), len(b))
+    # Plotting the first array
+    plt.plot(xa, a, label='orig', color='b')
+
+    # Plotting the second array
+    plt.plot(xb, b, label='resized', color='r')
+
+    plt.xlabel('X-axis')
+    plt.ylabel('Y-axis')
+
+    # Adding legend
+    plt.legend()
+
+    # Show grid
+    plt.grid()
+
+    # Show the plot
+    plt.show(block = True)
