@@ -4,13 +4,16 @@ import numpy as np
 import matplotlib.pyplot as plt
 from tensorflow.keras.models import load_model
 
+
 def plothistory(history):
 
     plt.figure(figsize=(12, 6))
 
     plt.subplot(2, 1, 1)
-    plt.plot(history['loss'], label='train_loss')
-    plt.plot(history['val_loss'], label='val_loss')
+
+    #plt.plot(history['val_loss'], label='val_loss')
+    plt.plot(history['unet3plus_output_final_activation_loss'], label='loss')
+    plt.plot(history['val_unet3plus_output_final_activation_loss'], label='val_loss')
     plt.title('Model Loss')
     plt.ylabel('Loss')
     plt.xlabel('Epoch')
@@ -18,9 +21,15 @@ def plothistory(history):
 
     plt.subplot(2, 1, 2)
     if 'accuracy' not in history or 'val_accuracy' not in history:
-        raise KeyError("History object missing 'accuracy' or 'val_accuracy' keys.")
-    plt.plot(history['accuracy'], label='train_acc')
-    plt.plot(history['val_accuracy'], label='val_acc')
+         print("History object missing 'accuracy' or 'val_accuracy' keys.")
+
+    plt.plot(history['val_unet3plus_output_final_activation_precision'], label='_precision')
+    plt.plot(history['val_unet3plus_output_final_activation_recall'], label='val_recall')
+    plt.plot(history['val_unet3plus_output_sup0_activation_iou_score'], label='val_iou')
+    plt.plot(history['unet3plus_output_final_activation_precision'], label='precision')
+    plt.plot(history['unet3plus_output_final_activation_recall'], label='recall')
+    plt.plot(history['unet3plus_output_final_activation_iou_score'], label='iou')
+
     plt.title('Model Accuracy')
     plt.ylabel('Accuracy')
     plt.xlabel('Epoch')
@@ -53,12 +62,12 @@ def show_mask_samples(images, names):
     plt.show(block=True)
 
 
-def plot_train_samples(arrayX, arrayY,train_shape):
-    num_plots = 3
+def plot_train_samples(arrayX, arrayY, train_shape):
+    num_plots = 4
     fig, axs = plt.subplots(num_plots, 2, figsize=(10, num_plots * 3))
     arrayX = np.reshape(arrayX, (len(arrayX), train_shape[0], train_shape[1]))
     arrayY = np.reshape(arrayY, (len(arrayY), train_shape[0], train_shape[1]))
-    bias = 3
+    bias = 14
     # Loop through the arrays and plot them
     for i in range(num_plots):
         y_indices, x_indices = np.where(arrayY[i+bias] == 1)
