@@ -8,47 +8,50 @@ import cv2
 from tqdm import tqdm
 import memory_profiler
 import gc
+import os
 import h5py
 #@memory_profiler.profile
 
 
 def create_tf_dataset_from_hdf5(file_path, batch_size, chunk_size, train_ratio, train_shape):
+    if not os.path.isfile(file_path):
+        raise FileNotFoundError('train_dataset.hdf5 nor found')
     with h5py.File(file_path, 'r') as h5file:
         # Get the total number of samples
-        total_samples = h5file['array1'].shape[0]
+        total_samples = h5file['masks'].shape[0]
         train_samples = int(total_samples * train_ratio)
         test_samples = total_samples-train_samples
 
         # Create a generator for training data
         def train_data_generator():
             for i in range(0, train_samples, chunk_size):
-                X_chunk = h5file['array1'][i:i + chunk_size]
-                y_chunk = h5file['array2'][i:i + chunk_size]
+                X_chunk = h5file['traces_img'][i:i + chunk_size]
+                y_chunk = h5file['masks'][i:i + chunk_size]
                 y_chunk = tf.keras.utils.to_categorical(y_chunk, num_classes=3)
                 yield (X_chunk, y_chunk)
 
         # Create a generator for validation data
         def val_data_generator():
             for i in range(train_samples, total_samples, chunk_size):
-                X_chunk = h5file['array1'][i:i + chunk_size]
-                y_chunk = h5file['array2'][i:i + chunk_size]
+                X_chunk = h5file['traces_img'][i:i + chunk_size]
+                y_chunk = h5file['masks'][i:i + chunk_size]
                 y_chunk = tf.keras.utils.to_categorical(y_chunk, num_classes=3)
                 yield (X_chunk, y_chunk)
 
         # Create TensorFlow datasets
         train_dataset = tf.data.Dataset.from_generator(train_data_generator,
                                                        output_signature=(
-                                                           tf.TensorSpec(shape=(None, train_shape[0], train_shape[1], 1),
+                                                           tf.TensorSpec(shape=(train_shape[0], train_shape[1], 1),
                                                                          dtype=tf.float32),
-                                                           tf.TensorSpec(shape=(None, train_shape[0], train_shape[1], 3),
+                                                           tf.TensorSpec(shape=(train_shape[0], train_shape[1], 3),
                                                                          dtype=tf.float32)
                                                        ))
 
         val_dataset = tf.data.Dataset.from_generator(val_data_generator,
                                                      output_signature=(
-                                                         tf.TensorSpec(shape=(None, train_shape[0], train_shape[1], 1),
+                                                         tf.TensorSpec(shape=(train_shape[0], train_shape[1], 1),
                                                                        dtype=tf.float32),
-                                                         tf.TensorSpec(shape=(None, train_shape[0], train_shape[1], 3),
+                                                         tf.TensorSpec(shape=(train_shape[0], train_shape[1], 3),
                                                                        dtype=tf.float32)
                                                      ))
 
