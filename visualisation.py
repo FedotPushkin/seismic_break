@@ -1,61 +1,49 @@
-import os
-import math
 import numpy as np
 import matplotlib.pyplot as plt
+from utils import rgb_to_grayscale
 
 
 def plothistory(history):
 
     plt.figure(figsize=(12, 6))
-
     plt.subplot(2, 1, 1)
+    try:
+        plt.plot(history['unet3plus_output_final_activation_loss'], label='loss')
+        plt.plot(history['val_unet3plus_output_final_activation_loss'], label='val_loss')
+        plt.title('Model Loss')
+        plt.ylabel('Loss')
+        plt.xlabel('Epoch')
+        plt.legend(loc='upper left')
 
-    #plt.plot(history['val_loss'], label='val_loss')
-    plt.plot(history['unet3plus_output_final_activation_loss'], label='loss')
-    plt.plot(history['val_unet3plus_output_final_activation_loss'], label='val_loss')
-    plt.title('Model Loss')
-    plt.ylabel('Loss')
-    plt.xlabel('Epoch')
-    plt.legend(loc='upper left')
+        plt.subplot(2, 1, 2)
+        plt.plot(history['val_unet3plus_output_final_activation_precision'], label='_precision')
+        plt.plot(history['val_unet3plus_output_final_activation_recall'], label='val_recall')
+        plt.plot(history['val_unet3plus_output_sup0_activation_iou_score'], label='val_iou')
+        plt.plot(history['unet3plus_output_final_activation_precision'], label='precision')
+        plt.plot(history['unet3plus_output_final_activation_recall'], label='recall')
+        plt.plot(history['unet3plus_output_final_activation_iou_score'], label='iou')
 
-    plt.subplot(2, 1, 2)
-    #if 'accuracy' not in history or 'val_accuracy' not in history:
-         #print("History object missing 'accuracy' or 'val_accuracy' keys.")
+        plt.title('Model Accuracy')
+        plt.ylabel('Accuracy')
+        plt.xlabel('Epoch')
+        plt.legend(loc='upper left')
 
-    plt.plot(history['val_unet3plus_output_final_activation_precision'], label='_precision')
-    plt.plot(history['val_unet3plus_output_final_activation_recall'], label='val_recall')
-    plt.plot(history['val_unet3plus_output_sup0_activation_iou_score'], label='val_iou')
-    plt.plot(history['unet3plus_output_final_activation_precision'], label='precision')
-    plt.plot(history['unet3plus_output_final_activation_recall'], label='recall')
-    plt.plot(history['unet3plus_output_final_activation_iou_score'], label='iou')
-
-    plt.title('Model Accuracy')
-    plt.ylabel('Accuracy')
-    plt.xlabel('Epoch')
-    plt.legend(loc='upper left')
-
-    plt.tight_layout()
-    plt.show(block=True)
+        plt.tight_layout()
+        plt.show(block=True)
+    except KeyError('history file does not have metrics ') as err:
+        print(err)
 
 
-def show_mask_samples(images, names):
-    if len(images) > 6:
-       images = images[:6]
-    if len(images) > 2:
-        height = 2
-        width = len(images)//2
-    else:
-        height = 1
-        width = len(images)
-
-    fig, axes = plt.subplots(height, width, figsize=(10, 7))
-    if images is None or names is None:
-        raise ValueError('one of arguments is None')
-    if len(images) == 0 or len(names) == 0:
+def show_mask_samples(images):
+    if images is None or images.any() is None:
+        raise ValueError('One of arguments is None')
+    if len(images) == 0:
         raise ValueError('empty argument recieved')
+    images = images[:6]
+    fig, axes = plt.subplots(3, 2, figsize=(10, 7))
+
     for idx, ax in enumerate(axes.flat):
         ax.imshow(images[idx])
-        ax.set_title(names[idx])
         ax.axis('off')
     plt.tight_layout()
     plt.show(block=True)
@@ -88,16 +76,11 @@ def plot_train_samples(arrayX, arrayY, train_shape):
 def plot_train_sample(arrayX, arrayY):
 
     plt.subplots(1, figsize=(10, 10))
-
-    bias = 0
     plt.imshow(arrayX, cmap='seismic', aspect='auto')  # Left column
     plt.title(f'Array X ')
 
     x_indices = np.linspace(0, len(arrayY), len(arrayY))
-    plt.plot( arrayY.flatten(),x_indices, 'ro', markersize=2)
-
-    #plt.imshow(arrayY, cmap='seismic', aspect='auto')  # Right column
-    #plt.title(f'Array Y ')
+    plt.plot(arrayY.flatten(), x_indices, 'ro', markersize=2)
 
     # Adjust layout
     plt.tight_layout()
@@ -106,8 +89,6 @@ def plot_train_sample(arrayX, arrayY):
 
 def show_predicted_images(y_test, y_pred):
 
-    rgb_to_grayscale = lambda rgb: 0.2989 * rgb[:, :, 0] + 0.5870 * rgb[:, :, 1] + 0.1140 * rgb[:, :, 2]
-
     if y_test is None or y_pred is None:
         raise ValueError('one of arguments is None')
     fig, axes = plt.subplots(8, 2, figsize=(10, 20))  # 8 rows, 2 columns for truth and prediction
@@ -115,10 +96,10 @@ def show_predicted_images(y_test, y_pred):
     axes[0, 0].set_title('Truth')
     axes[0, 1].set_title('Prediction')
     for i in range(8):
-        grayscale_image = rgb_to_grayscale(y_test[i])
 
+        grayscale_image = rgb_to_grayscale(y_test[i])
         # Plot ground truth on the left column
-        axes[i, 0].imshow(grayscale_image, cmap='viridis')
+        axes[i, 0].imshow(grayscale_image, cmap='seismic')
         axes[i, 0].axis('off')  # Hide axes
         # Plot prediction on the right column
         grayscale_image = rgb_to_grayscale(y_pred[i])
@@ -126,28 +107,8 @@ def show_predicted_images(y_test, y_pred):
         axes[i, 1].axis('off')  # Hide axes
 
     plt.tight_layout()
-    plt.show(block = True)
+    plt.show(block=True)
 
 
 
-def show2withaxis(a, b):
-    plt.figure(figsize=(10, 5))
-    xa = np.linspace(0, len(a), len(a))
-    xb = np.linspace(0, len(b), len(b))
-    # Plotting the first array
-    plt.plot(xa, a, label='orig', color='b')
 
-    # Plotting the second array
-    plt.plot(xb, b, label='resized', color='r')
-
-    plt.xlabel('X-axis')
-    plt.ylabel('Y-axis')
-
-    # Adding legend
-    plt.legend()
-
-    # Show grid
-    plt.grid()
-
-    # Show the plot
-    plt.show(block = True)
