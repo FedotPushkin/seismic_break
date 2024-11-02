@@ -51,8 +51,10 @@ def load_db(folder_path, train_shape, load, test, batch_size):
             file_path = os.path.join(folder_path, file_name)
 
             with h5py.File(file_path, 'r') as h5file:
-                for i in range(0, h5file['TRACE_DATA/DEFAULT/data_array'].shape[0], chunk_size):
-
+                data_length = h5file['TRACE_DATA/DEFAULT/data_array'].shape[0]
+                for i in range(0, data_length, chunk_size):
+                    print(f'loading file {file_name} chunk {1+i//chunk_size} of {1+data_length//chunk_size}')
+                    start_time = time.time()
                     data_arr = h5file['TRACE_DATA/DEFAULT/data_array'][i:i + chunk_size]
                     samp_num_arr = h5file['TRACE_DATA/DEFAULT/SAMP_NUM'][i:i + chunk_size]
                     rec_x = h5file['TRACE_DATA/DEFAULT/REC_X'][i:i + chunk_size]
@@ -85,7 +87,7 @@ def load_db(folder_path, train_shape, load, test, batch_size):
                     first_break_lines = [arr.flatten().astype(float) for arr in first_break_split]
                     del f_break, data_arr, rec_x, samp_rate_arr, samp_num_arr
 
-                    start_time = time.time()
+
                     max_width_f = 0
                     #widths_f = []
                     skipped = []
@@ -118,8 +120,8 @@ def load_db(folder_path, train_shape, load, test, batch_size):
                             skipped.append(idx)
                             #print(f'skipped  line {idx}')
                     #plot_df_samples(df)
-                    end_time = time.time()
-                    print(f"Time taken to interpolate: {(end_time - start_time)/60:.1f} minutes")
+
+
                     print(f"Skipped {len(skipped)} lines : {len(skipped)/len_f:.1f} %")
                     shapes = []
                     filtered_arr1 = [item for idx, item in enumerate(first_break_lines) if idx not in skipped]
@@ -197,7 +199,7 @@ def load_db(folder_path, train_shape, load, test, batch_size):
                             show_mask_samples(masks, [*range(6)])
                         del mask
 
-                    start_time = time.time()
+
                     for idx, img in tqdm(enumerate(filtered_arr2), total=len(filtered_arr2),
                                          desc=" Norm images"):
                         current_width = img.shape[0]
@@ -252,8 +254,8 @@ def load_db(folder_path, train_shape, load, test, batch_size):
                     drop_train_data_to_file(masks=masks, traces_img=traces_img, train_shape=train_shape)
                     del masks, traces_img
                     end_time = time.time()
-                    print(f"Time taken to save: {(end_time - start_time) / 60:.1f} minutes")
-                    print(f'loaded file with id { file_name} chunk_{i}')
+                    print(f"Time taken to load: {(end_time - start_time) / 60:.1f} minutes")
+                    print(f'loaded file with id { file_name} chunk_{i//chunk_size}')
 
                     #if file_name is not None:
                     #    names.append(file_name)
