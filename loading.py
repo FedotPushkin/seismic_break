@@ -9,7 +9,6 @@ from visualisation import plot_train_samples
 from visualisation import show_mask_samples, plot_train_sample
 import memory_profiler
 from build_data import create_tf_dataset_from_hdf5
-#@memory_profiler.profile
 
 
 def load_db(folder_path, train_shape, load, batch_size,  chunk_size, plot_samples):
@@ -124,9 +123,10 @@ def load_db(folder_path, train_shape, load, batch_size,  chunk_size, plot_sample
                                 y_line_resized = (y_line_resized - min_yr)/(max_yr - min_yr)
                                 y_line_resized = y_line_resized * (max_y - min_y) + min_y
 
-                                y_line_resized = np.concatenate((y_line_resized, np.zeros(num_zeros_resized, dtype=np.float32)))
+                                y_line_resized = np.concatenate((y_line_resized,
+                                                                 np.zeros(num_zeros_resized, dtype=np.float32)))
                                 filtered_arr1[idx] = (y_line_resized * coef * coef_y).astype(np.int32)
-                                #del y_line_resized
+                                del y_line_resized
                             else:
 
                                 if len(arr) <= train_shape[0]:
@@ -136,7 +136,7 @@ def load_db(folder_path, train_shape, load, batch_size,  chunk_size, plot_sample
                                 else:
                                     newarr = arr[:train_shape[0]] * coef * coef_y
                                     filtered_arr1[idx] = (newarr).astype(np.int32)
-                                    #raise ValueError('arr longer then max_width_f')
+
                         else:
                             raise ValueError('arr longer then max_width_f')
 
@@ -149,10 +149,9 @@ def load_db(folder_path, train_shape, load, batch_size,  chunk_size, plot_sample
                             raise ValueError('mask array out of range')
                         for x in range(train_shape[0]):
                             y_of_train_shape = y_line_resized[x]
-                            # Calculate y value on the line for this x
+
                             if 0 < y_of_train_shape < train_shape[1]:
                                 mask[x, y_of_train_shape] = 1
-                                #mask[x, 0:y_train_shape] = 0
                                 mask[x, y_of_train_shape + 1:] = 2
                             elif y_of_train_shape == 0:
                                 continue
@@ -232,10 +231,8 @@ def load_db(folder_path, train_shape, load, batch_size,  chunk_size, plot_sample
                                     batch_size=batch_size,
                                     chunk_size=chunk_size,
                                     train_ratio=0.8,
-                                    train_shape=train_shape)
-
-    if plot_samples:
-        plot_train_samples(traces_img[:50], masks[:50], train_shape)
+                                    train_shape=train_shape,
+                                    plot_samples=plot_samples)
 
     return dataset, val_dataset, train_samples, test_samples
 
