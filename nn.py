@@ -15,7 +15,7 @@ from segmentation_models.losses import DiceLoss, JaccardLoss, CategoricalFocalLo
 import json
 from tensorflow.keras.models import load_model
 import matplotlib.pyplot as plt
-
+from tensorflow.keras.callbacks import Callback
 
 class Unet_NN:
 
@@ -80,13 +80,24 @@ class Unet_NN:
             #dataset = dataset .shuffle(buffer_size=100).batch(batch_size).repeat().prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
             #val_set = tf.data.Dataset.from_tensor_slices((X_test, y_test)).batch(batch_size).repeat().\
             #    prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
+            class CustomMetricsLogger(Callback):
+                def on_batch_end(self, batch, logs=None):
+                    if 'unet3plus_output_final_activation_loss' in logs \
+                        and 'unet3plus_output_final_activation_iou_score' in logs \
+                            and 'unet3plus_output_final_activation_precision' in logs \
+                            and 'unet3plus_output_final_activation_recall' in logs:
+                        print(f"Batch {batch + 1}  Loss = {logs['unet3plus_output_final_activation_loss']:.4f}"
+                              f" Precicion = {logs['unet3plus_output_final_activation_precision']:.4f}"
+                              f" IoU = {logs['unet3plus_output_final_activation_iou_score']:.4f}"
+                              f" Recall = {logs['unet3plus_output_final_activation_recall']:.4f}" )
 
             self.history = self.model.fit(dataset,
                                           validation_data=val_dataset,
                                           epochs=epochs,
+                                          verbose=0,
                                           steps_per_epoch=train_samples // batch_size,
                                           validation_steps=test_samples // batch_size,
-                                          callbacks=[early_stop])
+                                          callbacks=[early_stop, CustomMetricsLogger()])
 
             self.model.save(f'models/Unet3Plus_model.h5')
 
@@ -98,7 +109,6 @@ class Unet_NN:
                 plothistory(self.history.history,)
 
     def make_predictions(self, val_dataset, batch_size, test_samples):
-
 
         model_name = f'Unet3Plus_model.h5'
         model_path = os.path.join('models/', model_name)
