@@ -2,8 +2,8 @@ import argparse
 import tensorflow as tf
 from nn import Unet_NN
 import cProfile
-#from build_data import build_train_data, build_test_data
 from loading import load_db
+from visualisation import show_predicted_images
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='First Break detection')
@@ -36,38 +36,38 @@ if __name__ == '__main__':
     train_shape = (64, 192)
     test_size = 0.2
     batch_size = 32
+
+
+   # profiler = cProfile.Profile()
+
+    try:
+        dataset, val_dataset, train_samples, test_samples = \
+            load_db(folder, train_shape, load, test, batch_size=batch_size)
+
+    except Exception as e:
+        print(f"Error loading images: {e}")
+        raise
+
+    #if plot_samples:
+    #    show_image_samples(images[:6], sample_ids[:6])
+    #profiler.enable()
+
+    #X, y = build_train_data(traces_img, masks,
+    #                        im_shape=train_shape,
+    #                        ds_shape=ds_shape)
+    #profiler.disable()
+    #profiler.print_stats(sort='time')
+    Unet = Unet_NN(input_shape=(train_shape[0], train_shape[1], 1))
     if fit:
-
-       # profiler = cProfile.Profile()
-
-        try:
-            dataset, val_dataset, train_samples, test_samples = \
-                load_db(folder, train_shape, load, test, batch_size=batch_size)
-
-        except Exception as e:
-            print(f"Error loading images: {e}")
-            raise
-
-        #if plot_samples:
-        #    show_image_samples(images[:6], sample_ids[:6])
-        #profiler.enable()
-
-        #X, y = build_train_data(traces_img, masks,
-        #                        im_shape=train_shape,
-        #                        ds_shape=ds_shape)
-        #profiler.disable()
-        #profiler.print_stats(sort='time')
-        model = Unet_NN(input_shape=(train_shape[0], train_shape[1], 1))
-
-        if fit:
-
-            model.fit_to_data(dataset, val_dataset,
-                              batch_size=batch_size,
-                              epochs=20,
-                              show_perf=True,
-                              train_samples=train_samples,
-                              test_samples=test_samples)
-
+       Unet.fit_to_data(dataset, val_dataset,
+                      batch_size=batch_size,
+                      epochs=3,
+                      show_perf=True,
+                      train_samples=train_samples,
+                      test_samples=test_samples)
+    if test:
+        y_test, y_pred = Unet.make_predictions(val_dataset, batch_size, test_samples)
+        show_predicted_images(y_test, y_pred)
 
 
 
