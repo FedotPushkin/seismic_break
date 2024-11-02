@@ -1,16 +1,8 @@
-import pandas as pd
-import itertools
-import numpy as np
-import tensorflow as tf
-from visualisation import show_mask_samples
-from skimage.transform import resize
-import cv2
-from tqdm import tqdm
-import memory_profiler
-import gc
 import os
 import h5py
-#@memory_profiler.profile
+import numpy as np
+import tensorflow as tf
+import albumentations as augm
 
 
 def create_tf_dataset_from_hdf5(file_path, batch_size, chunk_size, train_ratio, train_shape):
@@ -21,17 +13,27 @@ def create_tf_dataset_from_hdf5(file_path, batch_size, chunk_size, train_ratio, 
         total_samples = h5file['masks'].shape[0]
         train_samples = int(total_samples * train_ratio)
         test_samples = total_samples-train_samples
+        augmentation = augm.Compose([
+            augm.HorizontalFlip(p=0.5),
+            #augm.VerticalFlip(p=0.1),
+            #augm.RandomRotate90(p=0.1),
+            #augm.RandomBrightnessContrast(p=0.2),
+            augm.Resize(height=64, width=192),  # Resize to your target shape
+        ])
 
         # Create a generator for training data
         def train_data_generator():
             with h5py.File(file_path, 'r') as h5file:
                 for i in range(0, train_samples, chunk_size):
-                    X_chunk = h5file['traces_img'][i:i + chunk_size]
-                    y_chunk = h5file['masks'][i:i + chunk_size]
+                    X_chunk = h5file['traces_img'][i:i + chunk_size].astype(np.float32)
+                    y_chunk = h5file['masks'][i:i + chunk_size].astype(np.float32)
+                    for k in range(X_chunk.shape[0]):
+                        augmented = augmentation(image=X_chunk[k], mask=y_chunk[k])
+                        X_chunk[k] = augmented['image']
+                        y_chunk[k] = augmented['mask']
                     y_chunk = tf.keras.utils.to_categorical(y_chunk, num_classes=3)
                     for j in range(X_chunk.shape[0]):
-                        yield (X_chunk[j], y_chunk[j])
-
+                        yield X_chunk[j], y_chunk[j]
 
         # Create a generator for validation data
         def val_data_generator():
@@ -41,8 +43,7 @@ def create_tf_dataset_from_hdf5(file_path, batch_size, chunk_size, train_ratio, 
                     y_chunk = h5file['masks'][i:i + chunk_size]
                     y_chunk = tf.keras.utils.to_categorical(y_chunk, num_classes=3)
                     for j in range(X_chunk.shape[0]):
-                        yield (X_chunk[j], y_chunk[j])
-
+                        yield X_chunk[j], y_chunk[j]
 
         # Create TensorFlow datasets
         train_dataset = tf.data.Dataset.from_generator(train_data_generator,
@@ -68,15 +69,3 @@ def create_tf_dataset_from_hdf5(file_path, batch_size, chunk_size, train_ratio, 
 
     return train_dataset, val_dataset, train_samples, test_samples
 
-
-def build_test_data(images, ev_image, im_size):
-    if len(images) == 0 or len(ev_image) == 0:
-        raise ValueError("Input lists must not be empty.")
-    if len(ev_image) == 1:
-        Xt1, Xt2 = [], []
-        images = np.reshape(images, (len(images), im_size, im_size, 1))
-        ev_image = np.reshape(ev_image, (len(ev_image), im_size, im_size, 1))
-
-        return np.array(Xt1), np.array(Xt2)
-    else:
-        raise ValueError("Length of eval must be 1.")
