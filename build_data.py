@@ -24,19 +24,25 @@ def create_tf_dataset_from_hdf5(file_path, batch_size, chunk_size, train_ratio, 
 
         # Create a generator for training data
         def train_data_generator():
-            for i in range(0, train_samples, chunk_size):
-                X_chunk = h5file['traces_img'][i:i + chunk_size]
-                y_chunk = h5file['masks'][i:i + chunk_size]
-                y_chunk = tf.keras.utils.to_categorical(y_chunk, num_classes=3)
-                yield (X_chunk, y_chunk)
+            with h5py.File(file_path, 'r') as h5file:
+                for i in range(0, train_samples, chunk_size):
+                    X_chunk = h5file['traces_img'][i:i + chunk_size]
+                    y_chunk = h5file['masks'][i:i + chunk_size]
+                    y_chunk = tf.keras.utils.to_categorical(y_chunk, num_classes=3)
+                    for j in range(X_chunk.shape[0]):
+                        yield (X_chunk[j], y_chunk[j])
+
 
         # Create a generator for validation data
         def val_data_generator():
-            for i in range(train_samples, total_samples, chunk_size):
-                X_chunk = h5file['traces_img'][i:i + chunk_size]
-                y_chunk = h5file['masks'][i:i + chunk_size]
-                y_chunk = tf.keras.utils.to_categorical(y_chunk, num_classes=3)
-                yield (X_chunk, y_chunk)
+            with h5py.File(file_path, 'r') as h5file:
+                for i in range(train_samples, total_samples, chunk_size):
+                    X_chunk = h5file['traces_img'][i:i + chunk_size]
+                    y_chunk = h5file['masks'][i:i + chunk_size]
+                    y_chunk = tf.keras.utils.to_categorical(y_chunk, num_classes=3)
+                    for j in range(X_chunk.shape[0]):
+                        yield (X_chunk[j], y_chunk[j])
+
 
         # Create TensorFlow datasets
         train_dataset = tf.data.Dataset.from_generator(train_data_generator,
