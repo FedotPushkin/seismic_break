@@ -39,7 +39,7 @@ def drop_train_data_to_file(masks, traces_img, train_shape):
 
 
 def load_db(folder_path, train_shape, load, test, batch_size):
-    chunk_size = 11000
+    chunk_size = 1100000
     # List of all *.hdf5 files in folder
     if load:
 
@@ -62,7 +62,7 @@ def load_db(folder_path, train_shape, load, test, batch_size):
                     samp_rate_arr = np.array(samp_rate_arr).flatten()
                     samp_num_arr = np.array(samp_num_arr).flatten()
 
-                    plot_train_sample(data_arr[:171], f_break[:171]*0.5)
+                    #plot_train_sample(data_arr[:250], f_break[:250]*0.5)
                     if not np.all(samp_rate_arr == samp_rate_arr[0]):
                         raise ValueError('samp rate not constant')
                     if not np.all(samp_num_arr == samp_num_arr[0]):
@@ -103,15 +103,20 @@ def load_db(folder_path, train_shape, load, test, batch_size):
                         if mask.any() and max(arr) != min(arr):
                             x = np.arange(n_lines)
                             first_break_lines[idx] = np.interp(x, x[mask], arr[mask]).astype(int)
+                            first_break_lines[idx] = np.nan_to_num(first_break_lines[idx], nan=0)
                             del x, mask
                         else:
 
                             skipped.append(idx)
-                            print(f'skipped  line {idx}, all nans')
+                            #print(f'skipped  line {idx}')
                             continue
                         if idx == n_lines-1 or idx == n_lines//2:
                             gc.collect()
-
+                    for idx, arr in tqdm(enumerate(first_break_lines), total=len_f,
+                                         desc="skpping bad data labels"):
+                        if len(arr) < max_width_f//3:
+                            skipped.append(idx)
+                            #print(f'skipped  line {idx}')
                     #plot_df_samples(df)
                     end_time = time.time()
                     print(f"Time taken to interpolate: {(end_time - start_time)/60:.1f} minutes")
@@ -120,11 +125,14 @@ def load_db(folder_path, train_shape, load, test, batch_size):
                     filtered_arr1 = [item for idx, item in enumerate(first_break_lines) if idx not in skipped]
 
                     filtered_arr2 = [item for idx, item in enumerate(traces_img) if idx not in skipped]
-                    if len(filtered_arr1)==0 or len(filtered_arr2)==0:
+                    if len(filtered_arr1) == 0 or len(filtered_arr2) == 0:
                         continue
+                    for idx, arr in tqdm(enumerate(filtered_arr1), desc="cleaning data"):
+                        clean_data(arr, filtered_arr2[idx])
                     coef = (1000 / samp_rate).astype(np.float64)
                     coef_y = train_shape[1] / ds_height
                     masks = []
+
                     if len(filtered_arr1) > 0 and len(filtered_arr2) > 0:
                         plot_train_sample(filtered_arr2[0], filtered_arr1[0] * 0.5)
 
@@ -150,7 +158,7 @@ def load_db(folder_path, train_shape, load, test, batch_size):
                                 y_line_resized = y_line_resized * (max_y - min_y) + min_y
 
                                 y_line_resized = np.concatenate((y_line_resized, np.zeros(num_zeros_resized, dtype=np.float32)))
-                                filtered_arr1[idx] = (y_line_resized * coef * coef_y).astype(int)
+                                filtered_arr1[idx] = (y_line_resized * coef * coef_y).astype(np.int32)
                                 #del y_line_resized
                             else:
 
@@ -159,7 +167,8 @@ def load_db(folder_path, train_shape, load, test, batch_size):
                                     filtered_arr1[idx] = np.clip(np.concatenate((arr * coef * coef_y, np.zeros(num_zeros_resized, dtype=np.float32)))
                                                                   ).astype(np.int32)
                                 else:
-                                    filtered_arr1[idx] = (arr[:train_shape[0]] * coef * coef_y).astype(int)
+                                    newarr = arr[:train_shape[0]] * coef * coef_y
+                                    filtered_arr1[idx] = (newarr).astype(np.int32)
                                     #raise ValueError('arr longer then max_width_f')
                         else:
                             raise ValueError('arr longer then max_width_f')
@@ -273,5 +282,25 @@ def load_db(folder_path, train_shape, load, test, batch_size):
     return dataset, val_dataset, train_samples, test_samples
 
 
+def clean_data(line, img):
+    if len(line) == 0:
+        print('zero len line to be cleaned??')
+        return
+    if len(line) != img.shape[0]:
+        print('wrong dimensions to be cleaned??')
+        return
 
+    for i, value in enumerate(line):
+        if i < 3:
+            continue
 
+        if value != 0 and value == line[i-1] and value == line[i-2] and value == line[i-3]:
+            idx = i-2
+            while idx < len(line):
+                if line[idx-1] == line[idx]:
+                    line[idx-1] = 0
+                    idx += 1
+                else:
+                    break
+    zero_indices = [index for index, value in enumerate(line) if value == 0]
+    img[zero_indices, :] = np.zeros(img.shape[1], dtype=np.float32)
