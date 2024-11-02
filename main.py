@@ -41,7 +41,8 @@ if __name__ == '__main__':
        # profiler = cProfile.Profile()
 
         try:
-            dataset, val_dataset, train_samples, test_samples = load_db(folder, train_shape, load, test, batch_size=batch_size)
+            dataset, val_dataset, train_samples, test_samples = \
+                load_db(folder, train_shape, load, test, batch_size=batch_size)
 
         except Exception as e:
             print(f"Error loading images: {e}")
@@ -64,8 +65,8 @@ if __name__ == '__main__':
                               batch_size=batch_size,
                               epochs=20,
                               show_perf=True,
-                              train_size=train_samples,
-                              test_size=test_samples)
+                              train_samples=train_samples,
+                              test_samples=test_samples)
 
 
 
