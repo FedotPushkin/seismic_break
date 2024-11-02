@@ -6,40 +6,14 @@ import numpy as np
 from tqdm import tqdm
 from skimage.transform import resize
 from visualisation import plot_train_samples
-from visualisation import show_mask_samples, show2withaxis, plot_train_sample
+from visualisation import show_mask_samples, plot_train_sample
 import memory_profiler
 from build_data import create_tf_dataset_from_hdf5
 #@memory_profiler.profile
 
 
-def drop_train_data_to_file(masks, traces_img, train_shape):
+def load_db(folder_path, train_shape, load, batch_size,  chunk_size, plot_samples):
 
-    with h5py.File('train_dataset.hdf5', 'a') as h5file:
-
-        # Check if the datasets already exist
-        if 'masks' in h5file:
-            # If exists, resize the dataset and add new data
-            h5file['masks'].resize((h5file['masks'].shape[0] + masks.shape[0]), axis=0)
-            h5file['masks'][-masks.shape[0]:] = masks  # Add new data at the end
-        else:
-            # Create the dataset if it doesn't exist
-            h5file.create_dataset('masks', data=masks,
-                                  maxshape=(None, train_shape[0], train_shape[1], 1), chunks=True)
-
-        if 'traces_img' in h5file:
-            # If exists, resize the dataset and add new data
-            h5file['traces_img'].resize((h5file['traces_img'].shape[0] + traces_img.shape[0]), axis=0)
-            h5file['traces_img'][-traces_img.shape[0]:] = traces_img  # Add new data at the end
-        else:
-            # Create the dataset if it doesn't exist
-            h5file.create_dataset('traces_img', data=traces_img,
-                                  maxshape=(None, train_shape[0], train_shape[1], 1), chunks=True)
-
-    print("New arrays added to HDF5 file successfully.")
-
-
-def load_db(folder_path, train_shape, load, test, batch_size):
-    chunk_size = 1100000
     # List of all *.hdf5 files in folder
     if load:
 
@@ -53,18 +27,18 @@ def load_db(folder_path, train_shape, load, test, batch_size):
             with h5py.File(file_path, 'r') as h5file:
                 data_length = h5file['TRACE_DATA/DEFAULT/data_array'].shape[0]
                 for i in range(0, data_length, chunk_size):
+
                     print(f'loading file {file_name} chunk {1+i//chunk_size} of {1+data_length//chunk_size}')
                     start_time = time.time()
                     data_arr = h5file['TRACE_DATA/DEFAULT/data_array'][i:i + chunk_size]
                     samp_num_arr = h5file['TRACE_DATA/DEFAULT/SAMP_NUM'][i:i + chunk_size]
                     rec_x = h5file['TRACE_DATA/DEFAULT/REC_X'][i:i + chunk_size]
-                    #rec_y = h5file['TRACE_DATA/DEFAULT/REC_Y'][:]
                     samp_rate_arr = h5file['TRACE_DATA/DEFAULT/SAMP_RATE'][i:i + chunk_size]
                     f_break = h5file['TRACE_DATA/DEFAULT/SPARE1'][i:i + chunk_size]
                     samp_rate_arr = np.array(samp_rate_arr).flatten()
                     samp_num_arr = np.array(samp_num_arr).flatten()
-
-                    #plot_train_sample(data_arr[:250], f_break[:250]*0.5)
+                    if plot_samples:
+                        plot_train_sample(data_arr[:250], f_break[:250]*0.5)
                     if not np.all(samp_rate_arr == samp_rate_arr[0]):
                         raise ValueError('samp rate not constant')
                     if not np.all(samp_num_arr == samp_num_arr[0]):
@@ -73,23 +47,19 @@ def load_db(folder_path, train_shape, load, test, batch_size):
                     samp_rate = samp_rate_arr[0]
                     ds_height = samp_num_arr[0]
                     pivots = []
-                    pivots2 = []
+
                     for idx, x in enumerate(rec_x[:]):
                         if idx == 0 or idx == len(rec_x)-1:
                             continue
                         if x > rec_x[idx+1] and x > rec_x[idx-1]:
                             pivots.append(idx)
-                        #if x < rec_x[idx+1] and x < rec_x[idx-1]:
-                            #pivots2.append(idx)
+
                     traces_img = np.split(data_arr, pivots, axis=0)
 
                     first_break_split = np.split(f_break, pivots, axis=0)
                     first_break_lines = [arr.flatten().astype(float) for arr in first_break_split]
                     del f_break, data_arr, rec_x, samp_rate_arr, samp_num_arr
-
-
                     max_width_f = 0
-                    #widths_f = []
                     skipped = []
                     len_f = len(first_break_lines)
                     for idx, arr in tqdm(enumerate(first_break_lines), total=len_f,
@@ -98,7 +68,6 @@ def load_db(folder_path, train_shape, load, test, batch_size):
                         if n_lines == 0:
                             raise ValueError('empty first break line')
                         max_width_f = max(max_width_f, n_lines)
-                        #widths_f.append(n_lines)
                         arr[np.isin(arr, [0, -1])] = np.nan
 
                         mask = ~np.isnan(arr)
@@ -110,7 +79,6 @@ def load_db(folder_path, train_shape, load, test, batch_size):
                         else:
 
                             skipped.append(idx)
-                            #print(f'skipped  line {idx}')
                             continue
                         if idx == n_lines-1 or idx == n_lines//2:
                             gc.collect()
@@ -118,15 +86,12 @@ def load_db(folder_path, train_shape, load, test, batch_size):
                                          desc="skpping bad data labels"):
                         if len(arr) < max_width_f//3:
                             skipped.append(idx)
-                            #print(f'skipped  line {idx}')
-                    #plot_df_samples(df)
-
 
                     print(f"Skipped {len(skipped)} lines : {len(skipped)/len_f:.1f} %")
-                    shapes = []
-                    filtered_arr1 = [item for idx, item in enumerate(first_break_lines) if idx not in skipped]
 
+                    filtered_arr1 = [item for idx, item in enumerate(first_break_lines) if idx not in skipped]
                     filtered_arr2 = [item for idx, item in enumerate(traces_img) if idx not in skipped]
+
                     if len(filtered_arr1) == 0 or len(filtered_arr2) == 0:
                         continue
                     for idx, arr in tqdm(enumerate(filtered_arr1), desc="cleaning data"):
@@ -196,16 +161,15 @@ def load_db(folder_path, train_shape, load, test, batch_size):
 
                         masks.append(mask)
                         if len(masks) == 6 and 0:
-                            show_mask_samples(masks, [*range(6)])
+                            show_mask_samples(masks)
                         del mask
-
 
                     for idx, img in tqdm(enumerate(filtered_arr2), total=len(filtered_arr2),
                                          desc=" Norm images"):
                         current_width = img.shape[0]
                         if max_width_f < current_width:
                             raise ValueError('img shape error')
-                        #widths_t.append(current_width)
+
                         new_width = int(round((train_shape[0]*current_width/max_width_f)))
                         img = resize(img, (new_width, train_shape[1]), anti_aliasing=True)
                         if img.shape[0] < max_width_f:
@@ -230,12 +194,7 @@ def load_db(folder_path, train_shape, load, test, batch_size):
                             img -= img_min
                             img /= (img_max - img_min)
                             filtered_arr2[idx] = img
-                    #shape_arr0, shape_arr1 = [], []
-                    #for f in filtered_arr2:
-                    #    shape_arr0.append(f.shape[0])
-                    #    shape_arr1.append(f.shape[1])
-                    #print('before reshape', max(shape_arr0), min(shape_arr0), np.mean(shape_arr0))
-                    #print(max(shape_arr1), min(shape_arr1), np.mean(shape_arr1))
+
                     traces_img = np.reshape(filtered_arr2, (len(filtered_arr2), train_shape[0], train_shape[1], 1))
                     masks = np.reshape(masks, (len(masks), train_shape[0], train_shape[1], 1))
                     shape_arr0, shape_arr1 = [], []
@@ -246,7 +205,8 @@ def load_db(folder_path, train_shape, load, test, batch_size):
                     print(max(shape_arr1), min(shape_arr1), np.mean(shape_arr1))
                     del first_break_lines, filtered_arr2
                     gc.collect()
-                    #plot_train_samples(traces_img[:36], masks[:36], train_shape)
+                    if plot_samples:
+                        plot_train_samples(traces_img[:50], masks[:50], train_shape)
                     print('saving to array, this will take a while')
                     if masks is None or traces_img is None:
                         raise Exception('cant create image from trace')
@@ -257,10 +217,7 @@ def load_db(folder_path, train_shape, load, test, batch_size):
                     print(f"Time taken to load: {(end_time - start_time) / 60:.1f} minutes")
                     print(f'loaded file with id { file_name} chunk_{i//chunk_size}')
 
-                    #if file_name is not None:
-                    #    names.append(file_name)
-                    #else:
-                    #    raise ValueError(f" {file_name} tab is None")
+
                 #except Exception as e:
                 #    print(f'Exception happened: Error loading file {file_name}: {e}')
                 #    break
@@ -270,17 +227,16 @@ def load_db(folder_path, train_shape, load, test, batch_size):
 
     if not os.path.exists('train_dataset.hdf5'):
         raise FileNotFoundError('Sample files not found. Set load=True to generate them.')
-    dataset, val_dataset, train_samples, test_samples = create_tf_dataset_from_hdf5('train_dataset.hdf5',
-                                                       batch_size=batch_size,
-                                                       chunk_size=chunk_size,
-                                                       train_ratio=0.8,
-                                                       train_shape=train_shape)
-    #loaded = np.load(f'_chunk{i}.npz', allow_pickle=True)
-    #masks = loaded['arr1']
-    #traces_img = loaded['arr2']
-    #plot_train_samples(traces_img[:36], masks[:36], train_shape)
-    #if traces_img is None or masks is None:
-    #    raise ValueError("Failed to load traces.")
+    dataset, val_dataset, train_samples, test_samples = \
+        create_tf_dataset_from_hdf5('train_dataset.hdf5',
+                                    batch_size=batch_size,
+                                    chunk_size=chunk_size,
+                                    train_ratio=0.8,
+                                    train_shape=train_shape)
+
+    if plot_samples:
+        plot_train_samples(traces_img[:50], masks[:50], train_shape)
+
     return dataset, val_dataset, train_samples, test_samples
 
 
@@ -306,3 +262,30 @@ def clean_data(line, img):
                     break
     zero_indices = [index for index, value in enumerate(line) if value == 0]
     img[zero_indices, :] = np.zeros(img.shape[1], dtype=np.float32)
+
+
+def drop_train_data_to_file(masks, traces_img, train_shape):
+
+    with h5py.File('train_dataset.hdf5', 'a') as h5file:
+
+        # Check if the datasets already exist
+        if 'masks' in h5file:
+            # If exists, resize the dataset and add new data
+            h5file['masks'].resize((h5file['masks'].shape[0] + masks.shape[0]), axis=0)
+            h5file['masks'][-masks.shape[0]:] = masks  # Add new data at the end
+        else:
+            # Create the dataset if it doesn't exist
+            h5file.create_dataset('masks', data=masks,
+                                  maxshape=(None, train_shape[0], train_shape[1], 1), chunks=True)
+
+        if 'traces_img' in h5file:
+            # If exists, resize the dataset and add new data
+            h5file['traces_img'].resize((h5file['traces_img'].shape[0] + traces_img.shape[0]), axis=0)
+            h5file['traces_img'][-traces_img.shape[0]:] = traces_img  # Add new data at the end
+        else:
+            # Create the dataset if it doesn't exist
+            h5file.create_dataset('traces_img', data=traces_img,
+                                  maxshape=(None, train_shape[0], train_shape[1], 1), chunks=True)
+
+    print("New arrays added to HDF5 file successfully.")
+
