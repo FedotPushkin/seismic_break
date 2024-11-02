@@ -113,7 +113,7 @@ class Unet_NN:
 
 class CustomMetricsLogger(Callback):
     @staticmethod
-    def on_batch_end(self, batch, logs=None):
+    def on_batch_end(batch, logs=None):
         if 'unet3plus_output_final_activation_loss' in logs \
             and 'unet3plus_output_final_activation_iou_score' in logs \
                 and 'unet3plus_output_final_activation_precision' in logs \
