@@ -62,7 +62,7 @@ def create_tf_dataset_from_hdf5(file_path, batch_size, chunk_size, train_ratio, 
                                                      ))
 
         # Shuffle and batch the datasets
-        train_dataset = train_dataset.shuffle(buffer_size=1000).batch(batch_size).prefetch(
+        train_dataset = train_dataset.shuffle(buffer_size=100).batch(batch_size).repeat().prefetch(
             buffer_size=tf.data.experimental.AUTOTUNE)
         val_dataset = val_dataset.batch(batch_size).prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
 
