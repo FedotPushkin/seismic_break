@@ -2,7 +2,6 @@ import os
 import math
 import numpy as np
 import matplotlib.pyplot as plt
-from tensorflow.keras.models import load_model
 
 
 def plothistory(history):
@@ -20,8 +19,8 @@ def plothistory(history):
     plt.legend(loc='upper left')
 
     plt.subplot(2, 1, 2)
-    if 'accuracy' not in history or 'val_accuracy' not in history:
-         print("History object missing 'accuracy' or 'val_accuracy' keys.")
+    #if 'accuracy' not in history or 'val_accuracy' not in history:
+         #print("History object missing 'accuracy' or 'val_accuracy' keys.")
 
     plt.plot(history['val_unet3plus_output_final_activation_precision'], label='_precision')
     plt.plot(history['val_unet3plus_output_final_activation_recall'], label='val_recall')
@@ -105,29 +104,30 @@ def plot_train_sample(arrayX, arrayY):
     plt.show(block=True)
 
 
-def make_predictions(X_test):
-    res = []
-    for i in range(1):
-        model_name = f'Unet3Plus_model.h5'
-        model_path = os.path.join('models/', model_name)
-        if os.path.exists(model_path):
-            model = load_model(model_path)
-        else:
-            raise FileNotFoundError(f"Model file {model_name} not found.")
+def show_predicted_images(y_test, y_pred):
 
-        y_pred = model.evaluate(X_test, batch_size=32)
-        y_pred = np.resize(y_pred, len(y_pred))
-        res.append(y_pred)
-    return np.mean(res)
+    rgb_to_grayscale = lambda rgb: 0.2989 * rgb[:, :, 0] + 0.5870 * rgb[:, :, 1] + 0.1140 * rgb[:, :, 2]
 
-
-def show_performance_metrics(y, y_pred):
-
-    if y is None or y_pred is None:
+    if y_test is None or y_pred is None:
         raise ValueError('one of arguments is None')
+    fig, axes = plt.subplots(8, 2, figsize=(10, 20))  # 8 rows, 2 columns for truth and prediction
 
-    else:
-        raise ValueError('empty argument recieved')
+    axes[0, 0].set_title('Truth')
+    axes[0, 1].set_title('Prediction')
+    for i in range(8):
+        grayscale_image = rgb_to_grayscale(y_test[i])
+
+        # Plot ground truth on the left column
+        axes[i, 0].imshow(grayscale_image, cmap='viridis')
+        axes[i, 0].axis('off')  # Hide axes
+        # Plot prediction on the right column
+        grayscale_image = rgb_to_grayscale(y_pred[i])
+        axes[i, 1].imshow(grayscale_image, cmap='seismic')
+        axes[i, 1].axis('off')  # Hide axes
+
+    plt.tight_layout()
+    plt.show(block = True)
+
 
 
 def show2withaxis(a, b):
