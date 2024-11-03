@@ -8,8 +8,7 @@ if __name__ == '__main__':
     gpu_check()
     args = parser()
     try:
-        dataset, val_dataset, train_samples_n, test_samples_n = \
-            load_db(args.folder, args.train_shape, args.load, args.batch_size, args.chunk_size, args.plot_samples)
+        dataset, val_dataset, train_samples_n, test_samples_n = load_db(args)
 
     except Exception as e:
         print(f"Error loading images: {e}")
