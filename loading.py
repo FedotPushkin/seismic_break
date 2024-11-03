@@ -9,19 +9,21 @@ from visualisation import plot_train_samples
 from visualisation import show_mask_samples, plot_train_sample
 import memory_profiler
 from build_data import create_tf_dataset_from_hdf5
+from utils import compose_filters
 
+def load_db(args):
 
-def load_db(folder_path, train_shape, load, batch_size,  chunk_size, plot_samples):
-
+    train_shape = args.train_shape
+    chunk_size = args.chunk_size
     # List of all *.hdf5 files in folder
-    if load:
+    if args.load:
 
-        file_names = [f for f in os.listdir(folder_path) if (f.endswith('.hdf5') or (f.endswith('.hdf')))]
+        file_names = [f for f in os.listdir(args.folder) if (f.endswith('.hdf5') or (f.endswith('.hdf')))]
         if not file_names:
             raise ValueError("No .hdf5 files found in the specified folder.")
 
         for file_name in file_names:
-            file_path = os.path.join(folder_path, file_name)
+            file_path = os.path.join(args.folder, file_name)
 
             with h5py.File(file_path, 'r') as h5file:
                 data_length = h5file['TRACE_DATA/DEFAULT/data_array'].shape[0]
@@ -36,8 +38,8 @@ def load_db(folder_path, train_shape, load, batch_size,  chunk_size, plot_sample
                     f_break = h5file['TRACE_DATA/DEFAULT/SPARE1'][i:i + chunk_size]
                     samp_rate_arr = np.array(samp_rate_arr).flatten()
                     samp_num_arr = np.array(samp_num_arr).flatten()
-                    if plot_samples:
-                        plot_train_sample(data_arr[:250], f_break[:250]*0.5)
+                    if args.plot_samples:
+                        plot_train_sample(data_arr[:371], f_break[:371]*0.5)
                     if not np.all(samp_rate_arr == samp_rate_arr[0]):
                         raise ValueError('samp rate not constant')
                     if not np.all(samp_num_arr == samp_num_arr[0]):
@@ -89,7 +91,14 @@ def load_db(folder_path, train_shape, load, batch_size,  chunk_size, plot_sample
                     print(f"Skipped {len(skipped)} lines : {len(skipped)/len_f:.1f} %")
 
                     filtered_arr1 = [item for idx, item in enumerate(first_break_lines) if idx not in skipped]
-                    filtered_arr2 = [item for idx, item in enumerate(traces_img) if idx not in skipped]
+                    filtered_arr2 = [compose_filters(item,
+                                                     args.bandpass[0],
+                                                     args.bandpass[1],
+                                                     samp_rate,
+                                                     args.gausian,
+                                                     args.wavelet,
+                                                     args.weiner)
+                                     for idx, item in enumerate(traces_img) if idx not in skipped]
 
                     if len(filtered_arr1) == 0 or len(filtered_arr2) == 0:
                         continue
@@ -135,7 +144,7 @@ def load_db(folder_path, train_shape, load, batch_size,  chunk_size, plot_sample
                                                                   ).astype(np.int32)
                                 else:
                                     newarr = arr[:train_shape[0]] * coef * coef_y
-                                    filtered_arr1[idx] = (newarr).astype(np.int32)
+                                    filtered_arr1[idx] = newarr.astype(np.int32)
 
                         else:
                             raise ValueError('arr longer then max_width_f')
@@ -204,7 +213,7 @@ def load_db(folder_path, train_shape, load, batch_size,  chunk_size, plot_sample
                     print(max(shape_arr1), min(shape_arr1), np.mean(shape_arr1))
                     del first_break_lines, filtered_arr2
                     gc.collect()
-                    if plot_samples:
+                    if args.plot_samples:
                         plot_train_samples(traces_img[:50], masks[:50], train_shape)
                     print('saving to array, this will take a while')
                     if masks is None or traces_img is None:
@@ -228,11 +237,11 @@ def load_db(folder_path, train_shape, load, batch_size,  chunk_size, plot_sample
         raise FileNotFoundError('Sample files not found. Set load=True to generate them.')
     dataset, val_dataset, train_samples, test_samples = \
         create_tf_dataset_from_hdf5('train_dataset.hdf5',
-                                    batch_size=batch_size,
+                                    batch_size=args.batch_size,
                                     chunk_size=chunk_size,
                                     train_ratio=0.8,
                                     train_shape=train_shape,
-                                    plot_samples=plot_samples)
+                                    plot_samples=args.plot_samples)
 
     return dataset, val_dataset, train_samples, test_samples
 
