@@ -69,7 +69,7 @@ class Unet_NN:
                                           validation_data=val_dataset,
                                           epochs=epochs,
                                           verbose=0,
-                                          steps_per_epoch=train_samples // batch_size,
+                                          steps_per_epoch=train_samples // 10*batch_size,
                                           validation_steps=test_samples // batch_size,
                                           callbacks=[early_stop, CustomMetricsLogger()])
 
