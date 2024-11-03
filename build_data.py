@@ -16,9 +16,9 @@ def create_tf_dataset_from_hdf5(file_path, batch_size, chunk_size, train_ratio, 
         test_samples = total_samples-train_samples
         augmentation = augm.Compose([
             augm.HorizontalFlip(p=0.5),
-            #augm.VerticalFlip(p=0.1),
-            #augm.RandomRotate90(p=0.1),
-            #augm.RandomBrightnessContrast(p=0.2),
+            #   augm.VerticalFlip(p=0.1),
+            #   augm.RandomRotate90(p=0.1),
+            #   augm.RandomBrightnessContrast(p=0.2),
             augm.Resize(height=64, width=192),  # Resize to your target shape
         ])
 
@@ -33,6 +33,7 @@ def create_tf_dataset_from_hdf5(file_path, batch_size, chunk_size, train_ratio, 
                         augmented = augmentation(image=X_chunk[k], mask=y_chunk[k])
                         X_chunk[k] = augmented['image']
                         y_chunk[k] = augmented['mask']
+                        del augmented
                     y_chunk = tf.keras.utils.to_categorical(y_chunk, num_classes=3)
                     for j in range(X_chunk.shape[0]):
                         yield X_chunk[j], y_chunk[j]
