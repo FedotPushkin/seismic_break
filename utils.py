@@ -30,7 +30,7 @@ def parser():
     parser.add_argument('--batch_size',  type=int, default=32, help='Lower if not enough memory')
     parser.add_argument('--chunk_size', type=int, default=1100000, help='Lower if not enough memory')
     parser.add_argument('--epochs', type=int, default=6, help='Lower if not enough memory')
-    parser.add_argument('--gaussian', type=float, default=0.0, help='Sigma for Gausian')
+    parser.add_argument('--gaussian', type=float, default=1.0, help='Sigma for Gausian')
     parser.add_argument('--median', type=int, default=0, help='kernel size for median filer')
     parser.add_argument('--weiner', type=int, default=0, help='Window size for Weiner')
     parser.add_argument('--wavelet', type=int, default=0, help='Level for Wavelet')
@@ -39,6 +39,45 @@ def parser():
                         help="Tuple representing dimensions (width, height)")
     args = parser.parse_args()
     return args
+
+
+def remove_outliers_iqr(data):
+    if data is None:
+        return
+    if len(data) > 0:
+        q1 = np.percentile(data, 25)
+        q3 = np.percentile(data, 75)
+        iqr = q3 - q1
+        lower_bound = q1 - 1.5 * iqr
+        upper_bound = q3 + 1.5 * iqr
+        return data[(data >= lower_bound) & (data <= upper_bound)]
+
+
+def remove_outliers_moving_average(data, window_size=5, threshold=2):
+    if data is None or len(data) == 0:
+        return
+    # Calculate the moving average and moving standard deviation
+    moving_avg = np.convolve(data, np.ones(window_size) / window_size, mode='valid')
+    padded_moving_avg = np.pad(moving_avg, (window_size // 2, window_size - 1 - window_size // 2), mode='edge')
+
+    # Calculate the moving standard deviation
+    moving_std = np.sqrt(np.convolve((data - padded_moving_avg) ** 2, np.ones(window_size) / window_size, mode='valid'))
+    padded_moving_std = np.pad(moving_std, (window_size // 2, window_size - 1 - window_size // 2), mode='edge')
+
+    # Define outliers based on the threshold
+    lower_bound = padded_moving_avg - threshold * padded_moving_std
+    upper_bound = padded_moving_avg + threshold * padded_moving_std
+
+    # Remove outliers
+    non_outliers = (data >= lower_bound) & (data <= upper_bound)
+    return data[non_outliers]
+
+
+def remove_outliers_z_score(data, threshold=3):
+    mean = np.mean(data)
+    std = np.std(data)
+    z_scores = np.abs((data - mean) / std)
+    return data[z_scores < threshold]
 
 
 def rgb_to_grayscale(rgb):
@@ -59,17 +98,18 @@ def wavelet_filter(data, wavelet="db4", level=2):
     return pywt.waverec(coeffs, wavelet)
 
 
-def compose_filters(data, samp_rate, args):
-    x = data
-    if args.bandpass[0] != 0:
-        x = bandpass_filter(data, args.bandpass[0], args.bandpass[1], samp_rate, order=4)
-    if args.gaussian > 0:
-        x = gaussian_filter(x, sigma=args.gaussian)
-    if args.weiner > 0:
-        x = wiener(x, mysize=args.weiner)
-    if args.wavelet > 0:
-        x = wavelet_filter(x, wavelet="db4", level=args.wavelet)
-    if args.median > 0:
-        x = medfilt(x, kernel_size=args.median)
-
-    return x
+def compose_filters(image, samp_rate, args):
+    for idx, trace in enumerate(image):
+        x = trace
+        if args.bandpass[0] != 0:
+            x = bandpass_filter(x, args.bandpass[0], args.bandpass[1], samp_rate, order=4)
+        if args.gaussian > 0:
+            x = gaussian_filter(x, sigma=args.gaussian)
+        if args.weiner > 0:
+            x = wiener(x, mysize=args.weiner)
+        if args.wavelet > 0:
+            x = wavelet_filter(x, wavelet="db4", level=args.wavelet)
+        if args.median > 0:
+            x = medfilt(x, kernel_size=args.median)
+        image[idx] = x
+    return image
