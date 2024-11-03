@@ -9,7 +9,7 @@ from visualisation import plot_train_samples
 from visualisation import show_mask_samples, plot_train_sample
 import memory_profiler
 from build_data import create_tf_dataset_from_hdf5
-from utils import compose_filters
+from utils import compose_filters,remove_outliers_z_score,remove_outliers_iqr,remove_outliers_moving_average
 
 
 def get_pivots(array):
@@ -109,7 +109,9 @@ def split_data(pivots, not_splitted_first_breaks):
         mask = ~np.isnan(arr)
         if mask.any() and max(arr) != min(arr):
             x = np.arange(n_lines)
-            #first_break_lines[idx] = np.interp(x, x[mask], arr[mask]).astype(int)
+            first_break_lines[idx] = np.interp(x, x[mask], arr[mask]).astype(int)
+            first_break_lines[idx] = remove_outliers_z_score(first_break_lines[idx])
+            first_break_lines[idx] = remove_outliers_moving_average(first_break_lines[idx], window_size=5, threshold=2)
             first_break_lines[idx] = np.nan_to_num(first_break_lines[idx], nan=0)
             del x, mask
         else:
@@ -121,7 +123,10 @@ def split_data(pivots, not_splitted_first_breaks):
 
     for idx, arr in tqdm(enumerate(first_break_lines), total=len(first_break_lines),
                          desc="Skpping data labels less then 1/3 of max_width"):
-        if len(arr) < max_width_f // 3:
+        if arr is None:
+            skipped.append(idx)
+            continue
+        elif len(arr) < max_width_f // 3:
             skipped.append(idx)
     return first_break_lines, skipped, max_width_f
 
@@ -206,13 +211,14 @@ def load_db(args):
                     traces_img = np.split(data_arr, pivots, axis=0)
                     del not_splitted_first_breaks, data_arr, rec_x, samp_rate_arr, samp_num_arr
                     print('Applying filters to images')
-                    filtered_arr2 = [compose_filters(item, samp_rate, args)
-                                     for idx, item in enumerate(traces_img) if idx not in skipped]
+                    filtered_arr2 = [item for idx, item in enumerate(traces_img) if idx not in skipped]
+                    for idx, item in tqdm(enumerate(filtered_arr2), desc='Applying filters to images'):
+                        filtered_arr2[idx] = compose_filters(item, samp_rate, args)
 
                     if len(filtered_arr1) == 0 or len(filtered_arr2) == 0:
                         print('Blank input array detected')
                     for idx, arr in tqdm(enumerate(filtered_arr1), desc="Cleaning data"):
-                        clean_data(arr, filtered_arr2[idx])
+                        clean_data(arr, filtered_arr1[idx])
 
                     if len(filtered_arr1) > 0 and len(filtered_arr2) > 0:
                         plot_train_sample(filtered_arr2[0], filtered_arr1[0] * 0.5)
@@ -267,12 +273,16 @@ def load_db(args):
 
 
 def clean_data(line, img):
-    if len(line) == 0:
-        print('zero len line to be cleaned??')
-        return
+    if line is None:
+        raise ValueError('line None')
+    if img is None:
+        raise ValueError('img None')
+
+    if len(line) == 0 or img.shape[0] == 0:
+        print('empty line or empty img to be cleaned??')
+        raise
     if len(line) != img.shape[0]:
-        print('wrong dimensions to be cleaned??')
-        return
+        raise ValueError(f'shape mismatch: img shape {img.shape}, line {line.shape}')
 
     for i, value in enumerate(line):
         if i < 3:
