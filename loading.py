@@ -11,6 +11,155 @@ import memory_profiler
 from build_data import create_tf_dataset_from_hdf5
 from utils import compose_filters
 
+
+def get_pivots(array):
+    pivots = []
+
+    for idx, x in enumerate(array[:]):
+        if idx == 0 or idx == len(array) - 1:
+            continue
+        if x > array[idx + 1] and x > array[idx - 1]:
+            pivots.append(idx)
+    return pivots
+
+
+def create_masks(filtered_arr1, max_width, train_shape, samp_rate, ds_height):
+    masks = []
+    coef = (1000 / samp_rate).astype(np.float32)
+    coef_y = train_shape[1] / ds_height
+    for idx, arr in tqdm(enumerate(filtered_arr1), desc="Creating masks"):
+        if arr.shape[0] == 0 or arr.shape[0] > max_width or (np.array(arr) < 0).any():
+            raise ValueError('array larger then max_width')
+        elif 0 < arr.shape[0] <= max_width:
+
+            max_y = max(arr)
+            min_y = min(arr)
+            if min_y != max_y:
+
+                y_line_norm = (arr - min_y) / (max_y - min_y)
+                new_len = round(arr.shape[0] * train_shape[0] / max_width)
+                num_zeros_resized = train_shape[0] - new_len
+
+                y_line_resized = resize(y_line_norm, (new_len,), anti_aliasing=True)
+
+                max_yr = max(y_line_resized)
+                min_yr = min(y_line_resized)
+
+                y_line_resized = (y_line_resized - min_yr) / (max_yr - min_yr)
+                y_line_resized = y_line_resized * (max_y - min_y) + min_y
+
+                y_line_resized = np.concatenate((y_line_resized,
+                                                 np.zeros(num_zeros_resized, dtype=np.float32)))
+                filtered_arr1[idx] = (y_line_resized * coef * coef_y).astype(np.int32)
+                del y_line_resized
+            else:
+
+                if len(arr) <= train_shape[0]:
+                    num_zeros_resized = max(train_shape[0] - len(arr), 0)
+                    filtered_arr1[idx] = np.round(
+                        np.concatenate((arr * coef * coef_y, np.zeros(num_zeros_resized, dtype=np.float32)))
+                        ).astype(np.int32)
+                else:
+                    newarr = arr[:train_shape[0]] * coef * coef_y
+                    filtered_arr1[idx] = newarr.astype(np.int32)
+
+        else:
+            raise ValueError('arr longer then max_width_f')
+
+        min_yr = min(filtered_arr1[idx])
+        if min_yr < 0:
+            raise ValueError('negative ')
+        y_line_resized = filtered_arr1[idx]
+        mask = np.zeros(train_shape, dtype=np.float32)
+        if len(y_line_resized) < 1 or len(y_line_resized) > train_shape[0]:
+            raise ValueError('mask array out of range')
+        for x in range(train_shape[0]):
+            y_of_train_shape = y_line_resized[x]
+
+            if 0 < y_of_train_shape < train_shape[1]:
+                mask[x, y_of_train_shape] = 1
+                mask[x, y_of_train_shape + 1:] = 2
+            elif y_of_train_shape == 0:
+                continue
+            elif y_of_train_shape >= train_shape[1]:
+                raise ValueError('mask array out of range')
+
+        masks.append(mask)
+        if len(masks) == 6 and 0:
+            show_mask_samples(masks)
+        del mask
+    return masks
+
+
+def split_data(pivots, not_splitted_first_breaks):
+    max_width_f = 0
+    skipped = []
+    first_break_split = np.split(not_splitted_first_breaks, pivots, axis=0)
+
+    first_break_lines = [arr.flatten().astype(float) for arr in first_break_split]
+
+    for idx, arr in tqdm(enumerate(first_break_lines), total=len(first_break_lines),
+                         desc="Interpolating missing labels"):
+        n_lines = len(arr)
+        if n_lines == 0:
+            raise ValueError('empty first break line')
+        max_width_f = max(max_width_f, n_lines)
+        arr[np.isin(arr, [0, -1])] = np.nan
+
+        mask = ~np.isnan(arr)
+        if mask.any() and max(arr) != min(arr):
+            x = np.arange(n_lines)
+            #first_break_lines[idx] = np.interp(x, x[mask], arr[mask]).astype(int)
+            first_break_lines[idx] = np.nan_to_num(first_break_lines[idx], nan=0)
+            del x, mask
+        else:
+
+            skipped.append(idx)
+            continue
+        if idx == n_lines - 1 or idx == n_lines // 2:
+            gc.collect()
+
+    for idx, arr in tqdm(enumerate(first_break_lines), total=len(first_break_lines),
+                         desc="Skpping data labels less then 1/3 of max_width"):
+        if len(arr) < max_width_f // 3:
+            skipped.append(idx)
+    return first_break_lines, skipped, max_width_f
+
+
+def norm_images(filtered_arr2, max_width, train_shape):
+    for idx, img in tqdm(enumerate(filtered_arr2), total=len(filtered_arr2),
+                         desc=" Norm images"):
+        current_width = img.shape[0]
+        if max_width < current_width:
+            raise ValueError('img shape error')
+
+        new_width = int(round((train_shape[0] * current_width / max_width)))
+        img = resize(img, (new_width, train_shape[1]), anti_aliasing=True)
+        if img.shape[0] < max_width:
+            padded_image = np.zeros(train_shape, dtype=np.float32)
+            padded_image[:img.shape[0], :] = img
+            img = padded_image
+            del padded_image
+        else:
+            img = img[:max_width, :]
+        if img.shape != train_shape:
+            raise ValueError('img size unexpected')
+
+        if img.size > 0:
+            img_min = img.min()
+            img_max = img.max()
+        else:
+            raise ValueError("Image array is empty.")
+        if img_min == img_max:
+            raise ZeroDivisionError('Image data is Zero')
+        else:
+
+            img -= img_min
+            img /= (img_max - img_min)
+            filtered_arr2[idx] = img
+    return filtered_arr2
+
+
 def load_db(args):
 
     train_shape = args.train_shape
@@ -35,11 +184,10 @@ def load_db(args):
                     samp_num_arr = h5file['TRACE_DATA/DEFAULT/SAMP_NUM'][i:i + chunk_size]
                     rec_x = h5file['TRACE_DATA/DEFAULT/REC_X'][i:i + chunk_size]
                     samp_rate_arr = h5file['TRACE_DATA/DEFAULT/SAMP_RATE'][i:i + chunk_size]
-                    f_break = h5file['TRACE_DATA/DEFAULT/SPARE1'][i:i + chunk_size]
+                    not_splitted_first_breaks = h5file['TRACE_DATA/DEFAULT/SPARE1'][i:i + chunk_size]
                     samp_rate_arr = np.array(samp_rate_arr).flatten()
                     samp_num_arr = np.array(samp_num_arr).flatten()
-                    if args.plot_samples:
-                        plot_train_sample(data_arr[:371], f_break[:371]*0.5)
+
                     if not np.all(samp_rate_arr == samp_rate_arr[0]):
                         raise ValueError('samp rate not constant')
                     if not np.all(samp_num_arr == samp_num_arr[0]):
@@ -47,178 +195,50 @@ def load_db(args):
 
                     samp_rate = samp_rate_arr[0]
                     ds_height = samp_num_arr[0]
-                    pivots = []
+                    if args.plot_samples:
+                        plot_train_sample(data_arr[:371], not_splitted_first_breaks[:371]*1000/samp_rate)
+                    pivots = get_pivots(rec_x)
+                    first_break_lines, skipped, max_width = split_data(pivots, not_splitted_first_breaks)
 
-                    for idx, x in enumerate(rec_x[:]):
-                        if idx == 0 or idx == len(rec_x)-1:
-                            continue
-                        if x > rec_x[idx+1] and x > rec_x[idx-1]:
-                            pivots.append(idx)
-
-                    traces_img = np.split(data_arr, pivots, axis=0)
-
-                    first_break_split = np.split(f_break, pivots, axis=0)
-                    first_break_lines = [arr.flatten().astype(float) for arr in first_break_split]
-                    del f_break, data_arr, rec_x, samp_rate_arr, samp_num_arr
-                    max_width_f = 0
-                    skipped = []
-                    len_f = len(first_break_lines)
-                    for idx, arr in tqdm(enumerate(first_break_lines), total=len_f,
-                                         desc="Interpolating missing labels"):
-                        n_lines = len(arr)
-                        if n_lines == 0:
-                            raise ValueError('empty first break line')
-                        max_width_f = max(max_width_f, n_lines)
-                        arr[np.isin(arr, [0, -1])] = np.nan
-
-                        mask = ~np.isnan(arr)
-                        if mask.any() and max(arr) != min(arr):
-                            x = np.arange(n_lines)
-                            first_break_lines[idx] = np.interp(x, x[mask], arr[mask]).astype(int)
-                            first_break_lines[idx] = np.nan_to_num(first_break_lines[idx], nan=0)
-                            del x, mask
-                        else:
-
-                            skipped.append(idx)
-                            continue
-                        if idx == n_lines-1 or idx == n_lines//2:
-                            gc.collect()
-                    for idx, arr in tqdm(enumerate(first_break_lines), total=len_f,
-                                         desc="skpping bad data labels"):
-                        if len(arr) < max_width_f//3:
-                            skipped.append(idx)
-
-                    print(f"Skipped {len(skipped)} lines : {len(skipped)/len_f:.1f} %")
+                    print(f"Skipped {len(skipped)} lines : {len(skipped)/len(first_break_lines):.1f} %")
 
                     filtered_arr1 = [item for idx, item in enumerate(first_break_lines) if idx not in skipped]
-                    filtered_arr2 = [compose_filters(item,
-                                                     args.bandpass[0],
-                                                     args.bandpass[1],
-                                                     samp_rate,
-                                                     args.gausian,
-                                                     args.wavelet,
-                                                     args.weiner)
+                    traces_img = np.split(data_arr, pivots, axis=0)
+                    del not_splitted_first_breaks, data_arr, rec_x, samp_rate_arr, samp_num_arr
+                    print('Applying filters to images')
+                    filtered_arr2 = [compose_filters(item, samp_rate, args)
                                      for idx, item in enumerate(traces_img) if idx not in skipped]
 
                     if len(filtered_arr1) == 0 or len(filtered_arr2) == 0:
-                        continue
-                    for idx, arr in tqdm(enumerate(filtered_arr1), desc="cleaning data"):
+                        print('Blank input array detected')
+                    for idx, arr in tqdm(enumerate(filtered_arr1), desc="Cleaning data"):
                         clean_data(arr, filtered_arr2[idx])
-                    coef = (1000 / samp_rate).astype(np.float64)
-                    coef_y = train_shape[1] / ds_height
-                    masks = []
 
                     if len(filtered_arr1) > 0 and len(filtered_arr2) > 0:
                         plot_train_sample(filtered_arr2[0], filtered_arr1[0] * 0.5)
 
-                    for idx, arr in tqdm(enumerate(filtered_arr1), desc="Creating masks"):
-                        if arr.shape[0] == 0 or arr.shape[0] > max_width_f or (np.array(arr)<0).any():
-                            raise ValueError('array larger then max_width')
-                        elif 0 < arr.shape[0] <= max_width_f:
-
-                            max_y = max(arr)
-                            min_y = min(arr)
-                            if min_y != max_y:
-
-                                y_line_norm = (arr-min_y) / (max_y-min_y)
-                                new_len = round(arr.shape[0]*train_shape[0]/max_width_f)
-                                num_zeros_resized = train_shape[0] - new_len
-
-                                y_line_resized = resize(y_line_norm, (new_len,), anti_aliasing=True)
-
-                                max_yr = max(y_line_resized)
-                                min_yr = min(y_line_resized)
-
-                                y_line_resized = (y_line_resized - min_yr)/(max_yr - min_yr)
-                                y_line_resized = y_line_resized * (max_y - min_y) + min_y
-
-                                y_line_resized = np.concatenate((y_line_resized,
-                                                                 np.zeros(num_zeros_resized, dtype=np.float32)))
-                                filtered_arr1[idx] = (y_line_resized * coef * coef_y).astype(np.int32)
-                                del y_line_resized
-                            else:
-
-                                if len(arr) <= train_shape[0]:
-                                    num_zeros_resized = max(train_shape[0] - len(arr), 0)
-                                    filtered_arr1[idx] = np.clip(np.concatenate((arr * coef * coef_y, np.zeros(num_zeros_resized, dtype=np.float32)))
-                                                                  ).astype(np.int32)
-                                else:
-                                    newarr = arr[:train_shape[0]] * coef * coef_y
-                                    filtered_arr1[idx] = newarr.astype(np.int32)
-
-                        else:
-                            raise ValueError('arr longer then max_width_f')
-
-                        min_yr = min(filtered_arr1[idx])
-                        if min_yr < 0:
-                            raise ValueError('negative ')
-                        y_line_resized = filtered_arr1[idx]
-                        mask = np.zeros(train_shape, dtype=np.float32)
-                        if len(y_line_resized) < 1 or len(y_line_resized) > train_shape[0]:
-                            raise ValueError('mask array out of range')
-                        for x in range(train_shape[0]):
-                            y_of_train_shape = y_line_resized[x]
-
-                            if 0 < y_of_train_shape < train_shape[1]:
-                                mask[x, y_of_train_shape] = 1
-                                mask[x, y_of_train_shape + 1:] = 2
-                            elif y_of_train_shape == 0:
-                                continue
-                            elif y_of_train_shape >= train_shape[1]:
-                                raise ValueError('mask array out of range')
-
-                        masks.append(mask)
-                        if len(masks) == 6 and 0:
-                            show_mask_samples(masks)
-                        del mask
-
-                    for idx, img in tqdm(enumerate(filtered_arr2), total=len(filtered_arr2),
-                                         desc=" Norm images"):
-                        current_width = img.shape[0]
-                        if max_width_f < current_width:
-                            raise ValueError('img shape error')
-
-                        new_width = int(round((train_shape[0]*current_width/max_width_f)))
-                        img = resize(img, (new_width, train_shape[1]), anti_aliasing=True)
-                        if img.shape[0] < max_width_f:
-                            padded_image = np.zeros(train_shape, dtype=np.float32)
-                            padded_image[:img.shape[0], :] = img
-                            img = padded_image
-                            del padded_image
-                        else:
-                            img = img[:max_width_f, :]
-                        if img.shape != train_shape:
-                            raise ValueError('img size unexpected')
-
-                        if img.size > 0:
-                            img_min = img.min()
-                            img_max = img.max()
-                        else:
-                            raise ValueError("Image array is empty.")
-                        if img_min == img_max:
-                            raise ZeroDivisionError('Image data is Zero')
-                        else:
-
-                            img -= img_min
-                            img /= (img_max - img_min)
-                            filtered_arr2[idx] = img
+                    masks = create_masks(filtered_arr1, max_width, train_shape, samp_rate, ds_height)
+                    filtered_arr2 = norm_images(filtered_arr2, max_width, train_shape)
 
                     traces_img = np.reshape(filtered_arr2, (len(filtered_arr2), train_shape[0], train_shape[1], 1))
                     masks = np.reshape(masks, (len(masks), train_shape[0], train_shape[1], 1))
-                    shape_arr0, shape_arr1 = [], []
-                    for f in masks:
-                        shape_arr0.append(f.shape[0])
-                        shape_arr1.append(f.shape[1])
-                    print('after reshape', max(shape_arr0), min(shape_arr0), np.mean(shape_arr0))
-                    print(max(shape_arr1), min(shape_arr1), np.mean(shape_arr1))
+
                     del first_break_lines, filtered_arr2
                     gc.collect()
                     if args.plot_samples:
                         plot_train_samples(traces_img[:50], masks[:50], train_shape)
-                    print('saving to array, this will take a while')
+                        plot_train_samples(traces_img[6:50], masks[6:50], train_shape)
+                        plot_train_samples(traces_img[12:50], masks[12:50], train_shape)
+                        plot_train_samples(traces_img[18:50], masks[18:50], train_shape)
+                        plot_train_samples(traces_img[24:50], masks[24:50], train_shape)
+                        plot_train_samples(traces_img[30:50], masks[30:50], train_shape)
+                        plot_train_samples(traces_img[36:50], masks[36:50], train_shape)
+                        plot_train_samples(traces_img[42:50], masks[42:50], train_shape)
+                        plot_train_samples(traces_img[48:54], masks[48:54], train_shape)
+                        plot_train_samples(traces_img[54:60], masks[54:60], train_shape)
+                    print('Saving to array, this will take a while')
                     if masks is None or traces_img is None:
                         raise Exception('cant create image from trace')
-
                     drop_train_data_to_file(masks=masks, traces_img=traces_img, train_shape=train_shape)
                     del masks, traces_img
                     end_time = time.time()
