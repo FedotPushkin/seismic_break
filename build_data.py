@@ -3,9 +3,10 @@ import h5py
 import numpy as np
 import tensorflow as tf
 import albumentations as augm
+from visualisation import plot_train_samples
 
 
-def create_tf_dataset_from_hdf5(file_path, batch_size, chunk_size, train_ratio, train_shape):
+def create_tf_dataset_from_hdf5(file_path, batch_size, chunk_size, train_ratio, train_shape,plot_samples):
     if not os.path.isfile(file_path):
         raise FileNotFoundError('train_dataset.hdf5 nor found')
     with h5py.File(file_path, 'r') as h5file:
@@ -27,6 +28,7 @@ def create_tf_dataset_from_hdf5(file_path, batch_size, chunk_size, train_ratio, 
                 for i in range(0, train_samples, chunk_size):
                     X_chunk = h5file['traces_img'][i:i + chunk_size].astype(np.float32)
                     y_chunk = h5file['masks'][i:i + chunk_size].astype(np.float32)
+
                     for k in range(X_chunk.shape[0]):
                         augmented = augmentation(image=X_chunk[k], mask=y_chunk[k])
                         X_chunk[k] = augmented['image']
@@ -34,6 +36,8 @@ def create_tf_dataset_from_hdf5(file_path, batch_size, chunk_size, train_ratio, 
                     y_chunk = tf.keras.utils.to_categorical(y_chunk, num_classes=3)
                     for j in range(X_chunk.shape[0]):
                         yield X_chunk[j], y_chunk[j]
+                    if plot_samples:
+                        plot_train_samples(X_chunk[:20], y_chunk[:20], train_shape)
 
         # Create a generator for validation data
         def val_data_generator():

@@ -70,7 +70,7 @@ def plot_train_samples(arrayX, arrayY, train_shape):
 
     # Adjust layout
     plt.tight_layout()
-    plt.show(block=True)
+    plt.show()
 
 
 def plot_train_sample(arrayX, arrayY):
