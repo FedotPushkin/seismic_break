@@ -3,7 +3,7 @@ import argparse
 from scipy.signal import butter, filtfilt
 from scipy.ndimage import gaussian_filter
 import numpy as np
-from scipy.signal import wiener
+from scipy.signal import wiener, medfilt
 import pywt
 
 
@@ -30,7 +30,8 @@ def parser():
     parser.add_argument('--batch_size',  type=int, default=32, help='Lower if not enough memory')
     parser.add_argument('--chunk_size', type=int, default=1100000, help='Lower if not enough memory')
     parser.add_argument('--epochs', type=int, default=6, help='Lower if not enough memory')
-    parser.add_argument('--gaussian', type=float, default=1.0, help='Sigma for Gausian')
+    parser.add_argument('--gaussian', type=float, default=0.0, help='Sigma for Gausian')
+    parser.add_argument('--median', type=int, default=0, help='kernel size for median filer')
     parser.add_argument('--weiner', type=int, default=0, help='Window size for Weiner')
     parser.add_argument('--wavelet', type=int, default=0, help='Level for Wavelet')
     parser.add_argument('--bandpass', type=int, default=(10, 60), nargs=2, help='Lower and upper frequency for filter')
@@ -52,28 +53,23 @@ def bandpass_filter(data, lowcut, highcut, fs, order=4):
     return filtfilt(b, a, data)
 
 
-def apply_gaussian_filter(data, sigma=1.0):
-    return gaussian_filter(data, sigma=sigma)
-
-
-def apply_wiener_deconvolution(data, mysize=5):
-    return wiener(data, mysize=mysize)
-
-
 def wavelet_filter(data, wavelet="db4", level=2):
     coeffs = pywt.wavedec(data, wavelet, level=level)
     coeffs[1:] = [np.zeros_like(i) for i in coeffs[1:]]
     return pywt.waverec(coeffs, wavelet)
 
 
-def compose_filters(data,lowcut, highcut, sample_rate, gausian, wavelet, weiner):
-
-    x = bandpass_filter(data, lowcut, highcut, sample_rate, order=4)
-    if gausian > 0:
-        x = apply_gaussian_filter(x, sigma=gausian)
-    if weiner > 0:
-        x = apply_wiener_deconvolution(x, mysize=weiner)
-    if wavelet > 0:
-        x = wavelet_filter(x, wavelet="db4", level=wavelet)
+def compose_filters(data, samp_rate, args):
+    x = data
+    if args.bandpass[0] != 0:
+        x = bandpass_filter(data, args.bandpass[0], args.bandpass[1], samp_rate, order=4)
+    if args.gaussian > 0:
+        x = gaussian_filter(x, sigma=args.gaussian)
+    if args.weiner > 0:
+        x = wiener(x, mysize=args.weiner)
+    if args.wavelet > 0:
+        x = wavelet_filter(x, wavelet="db4", level=args.wavelet)
+    if args.median > 0:
+        x = medfilt(x, kernel_size=args.median)
 
     return x
