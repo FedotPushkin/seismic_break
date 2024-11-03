@@ -62,7 +62,7 @@ def plot_train_samples(arrayX, arrayY, train_shape):
         axs[i, 0].set_title(f'Array X {i + 1}')
         axs[i, 0].axis('off')  # Hide axes
         if len(x_indices) > 0:
-            axs[i, 0].plot(x_indices, y_indices, 'ro', markersize=2)
+            axs[i, 0].plot(x_indices, y_indices, color='black', markersize=2)
 
         axs[i, 1].imshow(arrayY[i+bias], cmap='seismic', aspect='auto')  # Right column
         axs[i, 1].set_title(f'Array Y {i + 1}')
@@ -80,7 +80,8 @@ def plot_train_sample(arrayX, arrayY):
     plt.title(f'Array X ')
 
     x_indices = np.linspace(0, len(arrayY), len(arrayY))
-    plt.plot(arrayY.flatten(), x_indices, 'ro', markersize=2)
+    #plt.get_cmap('viridis')(0.8)
+    plt.plot(arrayY.flatten(), x_indices, color='black', markersize=2, linestyle='dotted')
 
     # Adjust layout
     plt.tight_layout()

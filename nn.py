@@ -60,7 +60,7 @@ class Unet_NN:
                 os.makedirs('models')
 
             early_stop = keras.callbacks.EarlyStopping(monitor='val_unet3plus_output_final_activation_loss',
-                                                       patience=5,
+                                                       patience=4,
                                                        verbose=1,
                                                        restore_best_weights=True
                                                        )
@@ -121,4 +121,4 @@ class CustomMetricsLogger(Callback):
             print(f"Batch {batch + 1}  Loss = {logs['unet3plus_output_final_activation_loss']:.4f}"
                   f" Precicion = {logs['unet3plus_output_final_activation_precision']:.4f}"
                   f" IoU = {logs['unet3plus_output_final_activation_iou_score']:.4f}"
-                  f" Recall = {logs['unet3plus_output_final_activation_recall']:.4f}" )
+                  f" Recall = {logs['unet3plus_output_final_activation_recall']:.4f}")
