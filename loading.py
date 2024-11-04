@@ -6,7 +6,7 @@ import numpy as np
 from tqdm import tqdm
 from skimage.transform import resize
 from visualisation import plot_train_samples
-from visualisation import show_mask_samples, plot_train_sample
+from visualisation import show_mask_samples, plot_train_sample,plot_1d
 import memory_profiler
 from build_data import create_tf_dataset_from_hdf5
 from utils import compose_filters,remove_outliers_z_score,remove_outliers_iqr,remove_outliers_moving_average
@@ -104,15 +104,17 @@ def split_data(pivots, not_splitted_first_breaks):
         if n_lines == 0:
             raise ValueError('empty first break line')
         max_width_f = max(max_width_f, n_lines)
+
         arr[np.isin(arr, [0, -1])] = np.nan
 
         mask = ~np.isnan(arr)
         if mask.any() and max(arr) != min(arr):
             x = np.arange(n_lines)
             first_break_lines[idx] = np.interp(x, x[mask], arr[mask]).astype(int)
-            first_break_lines[idx] = remove_outliers_z_score(first_break_lines[idx])
-            first_break_lines[idx] = remove_outliers_moving_average(first_break_lines[idx], window_size=5, threshold=2)
+            first_break_lines[idx] = remove_outliers_z_score(first_break_lines[idx], threshold=2)
+            first_break_lines[idx] = remove_outliers_moving_average(first_break_lines[idx], window_size=5, threshold=1.5)
             first_break_lines[idx] = np.nan_to_num(first_break_lines[idx], nan=0)
+
             del x, mask
         else:
 
@@ -218,7 +220,7 @@ def load_db(args):
                     if len(filtered_arr1) == 0 or len(filtered_arr2) == 0:
                         print('Blank input array detected')
                     for idx, arr in tqdm(enumerate(filtered_arr1), desc="Cleaning data"):
-                        clean_data(arr, filtered_arr1[idx])
+                        clean_data(arr, filtered_arr2[idx])
 
                     if len(filtered_arr1) > 0 and len(filtered_arr2) > 0:
                         plot_train_sample(filtered_arr2[0], filtered_arr1[0] * 0.5)
