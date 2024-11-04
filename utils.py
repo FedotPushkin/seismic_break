@@ -53,9 +53,12 @@ def remove_outliers_iqr(data):
         return data[(data >= lower_bound) & (data <= upper_bound)]
 
 
-def remove_outliers_moving_average(data, window_size=5, threshold=2):
+def remove_outliers_moving_average(data, window_size=5, threshold=3):
     if data is None or len(data) == 0:
-        return
+        return data
+    if len(data) < window_size:
+        window_size = len(data)
+    data = data.astype(np.float32)
     # Calculate the moving average and moving standard deviation
     moving_avg = np.convolve(data, np.ones(window_size) / window_size, mode='valid')
     padded_moving_avg = np.pad(moving_avg, (window_size // 2, window_size - 1 - window_size // 2), mode='edge')
@@ -69,15 +72,34 @@ def remove_outliers_moving_average(data, window_size=5, threshold=2):
     upper_bound = padded_moving_avg + threshold * padded_moving_std
 
     # Remove outliers
-    non_outliers = (data >= lower_bound) & (data <= upper_bound)
-    return data[non_outliers]
+    non_outliers = np.where((data >= lower_bound) & (data <= upper_bound))[0]
+    outliers = np.where((data < lower_bound) | (data > upper_bound))[0]
+    if len(non_outliers) == 0:
+        return []
+    if len(outliers) > 0:
+        data[outliers] = np.interp(outliers, non_outliers, data[non_outliers]).astype(int)
+    return data
 
 
 def remove_outliers_z_score(data, threshold=3):
+    if data is None or len(data) == 0:
+        return data
+    data = data.astype(np.float32)
     mean = np.mean(data)
     std = np.std(data)
-    z_scores = np.abs((data - mean) / std)
-    return data[z_scores < threshold]
+    if std != 0:
+        non_outliers = np.where(np.abs((data - mean) / std) < threshold)[0]
+        outliers = np.where(~(np.abs((data - mean) / std) < threshold))[0]
+    else:
+        return []
+    if len(non_outliers) == 0:
+        return []
+    if len(outliers) > 0:
+        try:
+            data[outliers] = np.interp(outliers, non_outliers, data[non_outliers]).astype(int)
+        except Exception as e:
+            print(f"An error occurred: {e}")
+    return data
 
 
 def rgb_to_grayscale(rgb):
