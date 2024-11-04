@@ -12,6 +12,11 @@ from utils import compose_filters, remove_outliers_z_score, remove_outliers_movi
 
 
 def get_pivots(array):
+    """
+    array : int, x coordinate of reciever
+    Array needs to be splitted in slices to form examples for neural network.
+    This code calculates indexes of elements that are first for every slice
+    """
     pivots = []
 
     for idx, x in enumerate(array[:]):
@@ -22,7 +27,17 @@ def get_pivots(array):
     return pivots
 
 
-def create_masks(filtered_arr1, max_width, train_shape, samp_rate, ds_height):
+def create_masks(filtered_arr1, max_width, train_shape, samp_rate, ds_height, show_samples):
+    """
+
+    :param filtered_arr1: list, list or  first break lines
+    :param max_width: int,maximum width of an image
+    :param train_shape: tuple,target shape of images in dataset
+    :param samp_rate: int,sampling rate in mks
+    :param ds_height: int,original  image height
+    :param show_samples: boolean
+    :return:
+    """
     masks = []
     coef = (1000 / samp_rate).astype(np.float32)
     coef_y = train_shape[1] / ds_height
@@ -84,13 +99,20 @@ def create_masks(filtered_arr1, max_width, train_shape, samp_rate, ds_height):
                 raise ValueError('mask array out of range')
 
         masks.append(mask)
-        if len(masks) == 6 and 0:
+        if show_samples:
             show_mask_samples(masks)
         del mask
     return masks
 
 
 def split_data(pivots, not_splitted_first_breaks):
+    """
+
+    :param pivots: list, pivot elements calculated earlier
+    :param not_splitted_first_breaks: list, raw first break data from dataset
+    :return: list,list,int : splitted first break lines, indexes of lines with poor data to be skipped,
+                            maximum length of first break line
+    """
     max_width_f = 0
     skipped = []
     first_break_split = np.split(not_splitted_first_breaks, pivots, axis=0)
@@ -133,6 +155,13 @@ def split_data(pivots, not_splitted_first_breaks):
 
 
 def norm_images(filtered_arr2, max_width, train_shape):
+    """
+
+    :param filtered_arr2: list, list of 2d np arrays(images of seismic data)
+    :param max_width: int, maximim width of image
+    :param train_shape: tuple, target shape of dataset images
+    :return: normalised images
+    """
     for idx, img in tqdm(enumerate(filtered_arr2), total=len(filtered_arr2),
                          desc=" Norm images"):
         current_width = img.shape[0]
@@ -167,7 +196,10 @@ def norm_images(filtered_arr2, max_width, train_shape):
 
 
 def load_db(args):
-
+    """
+    :param args: cmd arguments from parser
+    :return: tf.Dataset, tf.Dataset, int, int : train and validation datasets and their lengths
+    """
     train_shape = args.train_shape
     chunk_size = args.chunk_size
     # List of all *.hdf5 files in folder
@@ -219,12 +251,9 @@ def load_db(args):
                     if len(filtered_arr1) == 0 or len(filtered_arr2) == 0:
                         print('Blank input array detected')
                     for idx, arr in tqdm(enumerate(filtered_arr1), desc="Cleaning data"):
-                        clean_data(arr, filtered_arr2[idx])
+                        arr,  filtered_arr2[idx] = clean_data(arr, filtered_arr2[idx])
 
-                    if len(filtered_arr1) > 0 and len(filtered_arr2) > 0:
-                        plot_train_sample(filtered_arr2[0], filtered_arr1[0] * 0.5)
-
-                    masks = create_masks(filtered_arr1, max_width, train_shape, samp_rate, ds_height)
+                    masks = create_masks(filtered_arr1, max_width, train_shape, samp_rate, ds_height, args.plot_samples)
                     filtered_arr2 = norm_images(filtered_arr2, max_width, train_shape)
 
                     traces_img = np.reshape(filtered_arr2, (len(filtered_arr2), train_shape[0], train_shape[1], 1))
@@ -250,7 +279,7 @@ def load_db(args):
                     del masks, traces_img
                     end_time = time.time()
                     print(f"Time taken to load: {(end_time - start_time) / 60:.1f} minutes")
-                    print(f'loaded file with id { file_name} chunk_{i//chunk_size}')
+                    print(f'loaded file with id { file_name} chunk_{1+i//chunk_size}')
 
     if not os.path.exists('train_dataset.hdf5'):
         raise FileNotFoundError('Sample files not found. Set load=True to generate them.')
@@ -266,6 +295,12 @@ def load_db(args):
 
 
 def clean_data(line, img):
+    """
+
+    :param line: list, first break line
+    :param img: ndarray, image
+    :return: list, ndarray: zeros where useful data is missing
+    """
     if line is None:
         raise ValueError('line None')
     if img is None:
@@ -291,10 +326,16 @@ def clean_data(line, img):
                     break
     zero_indices = [index for index, value in enumerate(line) if value == 0]
     img[zero_indices, :] = np.zeros(img.shape[1], dtype=np.float32)
+    return line, img
 
 
 def drop_train_data_to_file(masks, traces_img, train_shape):
-
+    """
+    :param masks: list, masks
+    :param traces_img: list, train images
+    :param train_shape: tuple, target image shape
+    :return: None
+    """
     with h5py.File('train_dataset.hdf5', 'a') as h5file:
 
         # Check if the datasets already exist

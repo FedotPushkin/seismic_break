@@ -6,7 +6,17 @@ import albumentations as augm
 from visualisation import plot_train_samples
 
 
-def create_tf_dataset_from_hdf5(file_path, batch_size, chunk_size, train_ratio, train_shape,plot_samples):
+def create_tf_dataset_from_hdf5(file_path, batch_size, chunk_size, train_ratio, train_shape, plot_samples):
+    """
+
+    :param file_path: str, path to processed dataset file
+    :param batch_size: int
+    :param chunk_size: int, large files should be loaded by chunks
+    :param train_ratio: float, train/test ratio
+    :param train_shape: tuple, target image shape
+    :param plot_samples: boolean
+    :return: tf.Dataset, tf.Dataset, int, int : train and validation datasets and their lengths
+    """
     if not os.path.isfile(file_path):
         raise FileNotFoundError('train_dataset.hdf5 nor found')
     with h5py.File(file_path, 'r') as h5file:
@@ -65,8 +75,8 @@ def create_tf_dataset_from_hdf5(file_path, batch_size, chunk_size, train_ratio, 
                                                      ))
 
         train_dataset = train_dataset.shuffle(buffer_size=100).batch(batch_size).repeat().prefetch(
-            buffer_size=100)
-        val_dataset = val_dataset.batch(batch_size).prefetch(buffer_size=100)#tf.data.experimental.AUTOTUNE)
+            buffer_size=tf.data.experimental.AUTOTUNE)
+        val_dataset = val_dataset.batch(batch_size).prefetch(buffer_size=tf.data.experimental.AUTOTUNE)
 
     return train_dataset, val_dataset, train_samples, test_samples
 

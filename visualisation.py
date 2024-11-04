@@ -8,6 +8,8 @@ def plothistory(history):
     plt.figure(figsize=(12, 6))
     plt.subplot(2, 1, 1)
     try:
+        if not isinstance(history, dict):
+            raise TypeError("Expected a dictionary for history")
         plt.plot(history['unet3plus_output_final_activation_loss'], label='loss')
         plt.plot(history['val_unet3plus_output_final_activation_loss'], label='val_loss')
         plt.title('Model Loss')
@@ -30,8 +32,8 @@ def plothistory(history):
 
         plt.tight_layout()
         plt.show(block=True)
-    except KeyError('history file does not have metrics ') as err:
-        print(err)
+    except KeyError as e:
+        print(f"KeyError: {e} - Check if the required keys are in the history dictionary.")
 
 
 def show_mask_samples(images):
@@ -52,8 +54,8 @@ def show_mask_samples(images):
 def plot_train_samples(arrayX, arrayY, train_shape):
     num_plots = 4
     fig, axs = plt.subplots(num_plots, 2, figsize=(10, num_plots * 3))
-    arrayX = np.reshape(arrayX, (len(arrayX), train_shape[0], train_shape[1]))
-    arrayY = np.reshape(arrayY, (len(arrayY), train_shape[0], train_shape[1]))
+    arrayX = np.squeeze(arrayX, axis=-1)
+    arrayY = np.squeeze(arrayY, axis=-1)
     bias = 0
     # Loop through the arrays and plot them
     for i in range(num_plots):
@@ -76,14 +78,12 @@ def plot_train_samples(arrayX, arrayY, train_shape):
 def plot_train_sample(arrayX, arrayY):
 
     plt.subplots(1, figsize=(10, 10))
-    plt.imshow(arrayX, cmap='seismic', aspect='auto')  # Left column
+    plt.imshow(arrayX, cmap='seismic', aspect='auto')
     plt.title(f'Train sample Array X ')
 
     x_indices = np.linspace(0, len(arrayY), len(arrayY))
-    #plt.get_cmap('viridis')(0.8)
     plt.plot(arrayY.flatten(), x_indices, color='black', markersize=2, linestyle='dotted')
 
-    # Adjust layout
     plt.tight_layout()
     plt.show(block=True)
 
@@ -92,7 +92,7 @@ def show_predicted_images(y_test, y_pred):
 
     if y_test is None or y_pred is None:
         raise ValueError('one of arguments is None')
-    fig, axes = plt.subplots(8, 2, figsize=(10, 20))  # 8 rows, 2 columns for truth and prediction
+    fig, axes = plt.subplots(8, 2, figsize=(10, 20))
 
     axes[0, 0].set_title('Truth')
     axes[0, 1].set_title('Prediction')

@@ -4,16 +4,17 @@ import json
 import tensorflow as tf
 from tensorflow import keras
 from visualisation import plothistory
-from tensorflow.keras.metrics import MeanIoU
 from tensorflow.keras.models import load_model
 from tensorflow.keras.callbacks import Callback
 from keras_unet_collection.models import unet_3plus_2d
-from tensorflow_addons.losses import SigmoidFocalCrossEntropy
 from segmentation_models.metrics import IOUScore, Precision, Recall
-from segmentation_models.losses import DiceLoss, JaccardLoss, CategoricalFocalLoss
+from segmentation_models.losses import DiceLoss, CategoricalFocalLoss
 
 
 class Unet_NN:
+    """
+    Class implements initialisation, setup, fitting , evaluation and predicting
+    """
 
     def __init__(self, input_shape):
 
@@ -52,6 +53,17 @@ class Unet_NN:
         return model
 
     def fit_to_data(self, dataset, val_dataset, batch_size, epochs, show_perf, train_samples, test_samples):
+        '''
+
+        :param dataset: tf.Dataset
+        :param val_dataset: f.Dataset
+        :param batch_size: int
+        :param epochs: int
+        :param show_perf: boolean
+        :param train_samples: int
+        :param test_samples: int
+        :return: None
+        '''
 
         with tf.device('/GPU:0'):
             gc.collect()
@@ -60,7 +72,7 @@ class Unet_NN:
                 os.makedirs('models')
 
             early_stop = keras.callbacks.EarlyStopping(monitor='val_unet3plus_output_final_activation_loss',
-                                                       patience=4,
+                                                       patience=2,
                                                        verbose=1,
                                                        restore_best_weights=True
                                                        )
@@ -69,8 +81,8 @@ class Unet_NN:
                                           validation_data=val_dataset,
                                           epochs=epochs,
                                           verbose=0,
-                                          steps_per_epoch=train_samples // 10*batch_size,
-                                          validation_steps=test_samples // batch_size,
+                                          steps_per_epoch=train_samples // (2*batch_size),
+                                          validation_steps=test_samples // (2*batch_size),
                                           callbacks=[early_stop, CustomMetricsLogger()])
 
             self.model.save(f'models/Unet3Plus_model.h5')
@@ -112,6 +124,9 @@ class Unet_NN:
 
 
 class CustomMetricsLogger(Callback):
+    """
+    Metrics and losses have long names so this code shrinks them to  fit on the screen
+    """
     @staticmethod
     def on_batch_end(batch, logs=None):
         if 'unet3plus_output_final_activation_loss' in logs \

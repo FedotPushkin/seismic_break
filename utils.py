@@ -8,28 +8,28 @@ import pywt
 
 
 def gpu_check():
-    gpus = tf.config.list_physical_devices('GPU')
-    if gpus:
-        try:
+    try:
+        gpus = tf.config.list_physical_devices('GPU')
+        if gpus:
             for gpu in gpus:
                 tf.config.experimental.set_memory_growth(gpu, True)
             print(f'Num GPUs Available: {len(gpus)}')
-        except RuntimeError as e:
-            print(e)
-    else:
-        print("No GPU available. Make sure your TensorFlow installation supports GPU.")
+        else:
+            print("No GPU available. Make sure your TensorFlow installation supports GPU.")
+    except RuntimeError as e:
+        print(e)
 
 
 def parser():
     parser = argparse.ArgumentParser(description='First Break detection')
     parser.add_argument('--folder', type=str, help='Path to the input file')
     parser.add_argument('--fit', action='store_true', help='Train the model')
-    parser.add_argument('--test', action='store_true', help='Train the model')
+    parser.add_argument('--test', action='store_true', help='Test the model')
     parser.add_argument('--plot-samples', action='store_true', help='Plot image samples')
     parser.add_argument('--load', action='store_true', help='Load signatures from files')
     parser.add_argument('--batch_size',  type=int, default=32, help='Lower if not enough memory')
     parser.add_argument('--chunk_size', type=int, default=1100000, help='Lower if not enough memory')
-    parser.add_argument('--epochs', type=int, default=6, help='Lower if not enough memory')
+    parser.add_argument('--epochs', type=int, default=10, help='Lower if not enough memory')
     parser.add_argument('--gaussian', type=float, default=2.0, help='Sigma for Gausian')
     parser.add_argument('--median', type=int, default=5, help='kernel size for median filer')
     parser.add_argument('--weiner', type=int, default=0, help='Window size for Weiner')
@@ -39,6 +39,11 @@ def parser():
                         help="Tuple representing dimensions (width, height)")
     args = parser.parse_args()
     return args
+
+
+'''
+    Following methods implement various outlier detection,removal and interpolation
+'''
 
 
 def remove_outliers_iqr(data):
@@ -104,6 +109,11 @@ def remove_outliers_z_score(data, threshold=3):
 
 def rgb_to_grayscale(rgb):
     return 0.2989 * rgb[:, :, 0] + 0.5870 * rgb[:, :, 1] + 0.1140 * rgb[:, :, 2]
+
+
+'''
+    Following methods implement various filters for 1d data
+'''
 
 
 def bandpass_filter(data, lowcut, highcut, fs, order=4):

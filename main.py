@@ -1,10 +1,13 @@
 from nn import Unet_NN
 from loading import load_db
-from visualisation import show_predicted_images
 from utils import gpu_check, parser
+from visualisation import show_predicted_images
+
 
 if __name__ == '__main__':
-
+    '''
+    Please view utils.py for parameters values
+    '''
     gpu_check()
     args = parser()
     try:
