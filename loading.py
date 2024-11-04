@@ -6,10 +6,9 @@ import numpy as np
 from tqdm import tqdm
 from skimage.transform import resize
 from visualisation import plot_train_samples
-from visualisation import show_mask_samples, plot_train_sample,plot_1d
-import memory_profiler
+from visualisation import show_mask_samples, plot_train_sample
 from build_data import create_tf_dataset_from_hdf5
-from utils import compose_filters,remove_outliers_z_score,remove_outliers_iqr,remove_outliers_moving_average
+from utils import compose_filters, remove_outliers_z_score, remove_outliers_moving_average
 
 
 def get_pivots(array):
@@ -252,14 +251,6 @@ def load_db(args):
                     end_time = time.time()
                     print(f"Time taken to load: {(end_time - start_time) / 60:.1f} minutes")
                     print(f'loaded file with id { file_name} chunk_{i//chunk_size}')
-
-
-                #except Exception as e:
-                #    print(f'Exception happened: Error loading file {file_name}: {e}')
-                #    break
-
-        if file_names is None:
-            raise ValueError("Failed to load db.")
 
     if not os.path.exists('train_dataset.hdf5'):
         raise FileNotFoundError('Sample files not found. Set load=True to generate them.')
