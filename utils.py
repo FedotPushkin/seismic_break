@@ -30,11 +30,11 @@ def parser():
     parser.add_argument('--batch_size',  type=int, default=32, help='Lower if not enough memory')
     parser.add_argument('--chunk_size', type=int, default=1100000, help='Lower if not enough memory')
     parser.add_argument('--epochs', type=int, default=6, help='Lower if not enough memory')
-    parser.add_argument('--gaussian', type=float, default=1.0, help='Sigma for Gausian')
-    parser.add_argument('--median', type=int, default=0, help='kernel size for median filer')
+    parser.add_argument('--gaussian', type=float, default=2.0, help='Sigma for Gausian')
+    parser.add_argument('--median', type=int, default=5, help='kernel size for median filer')
     parser.add_argument('--weiner', type=int, default=0, help='Window size for Weiner')
     parser.add_argument('--wavelet', type=int, default=0, help='Level for Wavelet')
-    parser.add_argument('--bandpass', type=int, default=(10, 60), nargs=2, help='Lower and upper frequency for filter')
+    parser.add_argument('--bandpass', type=int, default=(0, 60), nargs=2, help='Lower and upper frequency for filter')
     parser.add_argument("--train_shape", type=int, default=(64, 192), nargs=2,
                         help="Tuple representing dimensions (width, height)")
     args = parser.parse_args()
@@ -121,10 +121,11 @@ def wavelet_filter(data, wavelet="db4", level=2):
 
 
 def compose_filters(image, samp_rate, args):
+    samp_rate_hz = 1/(samp_rate * 1e-6)
     for idx, trace in enumerate(image):
         x = trace
         if args.bandpass[0] != 0:
-            x = bandpass_filter(x, args.bandpass[0], args.bandpass[1], samp_rate, order=4)
+            x = bandpass_filter(x, args.bandpass[0], args.bandpass[1], samp_rate_hz, order=4)
         if args.gaussian > 0:
             x = gaussian_filter(x, sigma=args.gaussian)
         if args.weiner > 0:
