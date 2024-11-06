@@ -29,7 +29,7 @@ def parser():
     parser.add_argument('--load', action='store_true', help='Load signatures from files')
     parser.add_argument('--batch_size',  type=int, default=32, help='Lower if not enough memory')
     parser.add_argument('--chunk_size', type=int, default=1100000, help='Lower if not enough memory')
-    parser.add_argument('--epochs', type=int, default=10, help='Lower if not enough memory')
+    parser.add_argument('--epochs', type=int, default=20, help='Lower if not enough memory')
     parser.add_argument('--gaussian', type=float, default=2.0, help='Sigma for Gausian')
     parser.add_argument('--median', type=int, default=5, help='kernel size for median filer')
     parser.add_argument('--weiner', type=int, default=0, help='Window size for Weiner')

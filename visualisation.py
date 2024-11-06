@@ -2,7 +2,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 from utils import rgb_to_grayscale
 
-
+'''
+Methods in this module visualise training history, metrics, masks and images
+'''
 def plothistory(history):
 
     plt.figure(figsize=(12, 6))
@@ -111,5 +113,26 @@ def show_predicted_images(y_test, y_pred):
     plt.show(block=True)
 
 
+def plot_batch_eposh_hist(loss_history_callback):
+    plt.figure(figsize=(12, 6))
+    plt.subplot(1, 2, 1)
+    plt.plot(loss_history_callback.epochs, loss_history_callback.epoch_loss[1:], label='Loss')
+    plt.plot(loss_history_callback.epochs, loss_history_callback.epoch_metrics[1:], label='unet3plus_output_final_activation_iou_score')
+    plt.xlabel('Epoch')
+    plt.ylabel('Value')
+    plt.title('Loss and Accuracy per Epoch')
+    plt.legend()
+
+    # Plot batch losses and accuracy
+    plt.subplot(1, 2, 2)
+    plt.plot(loss_history_callback.batches, loss_history_callback.batch_loss[1:], label='Loss')
+    plt.plot(loss_history_callback.batches, loss_history_callback.batch_metrics[1:], label='unet3plus_output_final_activation_iou_score')
+    plt.xlabel('Batch')
+    plt.ylabel('Value')
+    plt.title('Loss and Accuracy per Batch')
+    plt.legend()
+
+    plt.tight_layout()
+    plt.show()
 
 
