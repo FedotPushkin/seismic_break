@@ -3,7 +3,7 @@ import gc
 import json
 import tensorflow as tf
 from tensorflow import keras
-from visualisation import plothistory
+from visualisation import plothistory,plot_batch_eposh_hist
 from tensorflow.keras.models import load_model
 from tensorflow.keras.callbacks import Callback
 from keras_unet_collection.models import unet_3plus_2d
@@ -42,10 +42,10 @@ class Unet_NN:
                              pool='max',
                              unpool='bilinear',
                              deep_supervision=True,
-                             n_labels=3,)
+                             n_labels=4,)
 
         loss_fn = self.dice_loss_plus_focal_loss
-        metrics = [IOUScore(class_indexes=[0, 1, 2]), Precision(class_indexes=[1]), Recall(class_indexes=[1])]
+        metrics = [IOUScore(class_indexes=[0, 1, 2, 3]), Precision(class_indexes=[1]), Recall(class_indexes=[1])]
         model.compile(optimizer='adam',
                       loss=loss_fn,
                       metrics=metrics)
@@ -72,21 +72,23 @@ class Unet_NN:
                 os.makedirs('models')
 
             early_stop = keras.callbacks.EarlyStopping(monitor='val_unet3plus_output_final_activation_loss',
-                                                       patience=2,
+                                                       patience=3,
                                                        verbose=1,
                                                        restore_best_weights=True
                                                        )
-
+            loss_history_callback = LossHistoryCallback()
             self.history = self.model.fit(dataset,
                                           validation_data=val_dataset,
                                           epochs=epochs,
                                           verbose=0,
-                                          steps_per_epoch=train_samples // (2*batch_size),
-                                          validation_steps=test_samples // (2*batch_size),
-                                          callbacks=[early_stop, CustomMetricsLogger()])
+                                          steps_per_epoch=train_samples // (batch_size),
+                                          validation_steps=test_samples // (batch_size),
+                                          callbacks=[early_stop, CustomMetricsLogger(), loss_history_callback])
 
             self.model.save(f'models/Unet3Plus_model.h5')
             gc.collect()
+
+            plot_batch_eposh_hist(loss_history_callback)
         if self.history is not None:
             with open('training_history.json', 'w') as file:
                 json.dump(self.history.history, file)
@@ -100,7 +102,7 @@ class Unet_NN:
         if os.path.exists(model_path):
             model = load_model(model_path, custom_objects={
                 'dice_loss_plus_focal_loss': self.dice_loss_plus_focal_loss,
-                'iou_score': IOUScore(class_indexes=[0, 1, 2]),
+                'iou_score': IOUScore(class_indexes=[0, 1, 2, 3]),
                 'precision': Precision(class_indexes=[1]),
                 'recall': Recall(class_indexes=[1])
             })
@@ -137,3 +139,26 @@ class CustomMetricsLogger(Callback):
                   f" Precicion = {logs['unet3plus_output_final_activation_precision']:.4f}"
                   f" IoU = {logs['unet3plus_output_final_activation_iou_score']:.4f}"
                   f" Recall = {logs['unet3plus_output_final_activation_recall']:.4f}")
+
+
+class LossHistoryCallback(tf.keras.callbacks.Callback):
+    def on_train_begin(self, logs=None):
+        # Initialize lists to store losses and metrics for each epoch and batch
+        self.epoch_loss = []
+        self.epoch_metrics = []
+        self.batch_loss = []
+        self.batch_metrics = []
+        self.epochs = []
+        self.batches = []
+
+    def on_epoch_end(self, epoch, logs=None):
+        # Append loss and metrics after each epoch
+        self.epoch_loss.append(logs.get('loss'))
+        self.epoch_metrics.append(logs.get('unet3plus_output_final_activation_iou_score'))
+        self.epochs.append(epoch)
+
+    def on_batch_end(self, batch, logs=None):
+        # Append loss and metrics after each batch
+        self.batch_loss.append(logs.get('loss'))
+        self.batch_metrics.append(logs.get('unet3plus_output_final_activation_iou_score'))
+        self.batches.append(batch)
