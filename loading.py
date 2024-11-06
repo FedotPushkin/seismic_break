@@ -27,7 +27,7 @@ def get_pivots(array):
     return pivots
 
 
-def create_masks(filtered_arr1, max_width, train_shape, samp_rate, ds_height, show_samples):
+def create_masks(filtered_arr1, max_width, train_shape, samp_rate, ds_height, show_samples, cut_idx):
     """
 
     :param filtered_arr1: list, list or  first break lines
@@ -97,6 +97,9 @@ def create_masks(filtered_arr1, max_width, train_shape, samp_rate, ds_height, sh
                 continue
             elif y_of_train_shape >= train_shape[1]:
                 raise ValueError('mask array out of range')
+            cut_idx = np.array(cut_idx)
+            cut_idx = list(set(np.round(cut_idx * train_shape[0] / max_width).astype(np.int32)))
+            mask[cut_idx, :] = 3
 
         masks.append(mask)
         if show_samples:
@@ -251,13 +254,15 @@ def load_db(args):
                     if len(filtered_arr1) == 0 or len(filtered_arr2) == 0:
                         print('Blank input array detected')
                     for idx, arr in tqdm(enumerate(filtered_arr1), desc="Cleaning data"):
-                        arr,  filtered_arr2[idx] = clean_data(arr, filtered_arr2[idx])
+                        arr,  filtered_arr2[idx], cut_idx = clean_data(arr, filtered_arr2[idx])
 
-                    masks = create_masks(filtered_arr1, max_width, train_shape, samp_rate, ds_height, args.plot_samples)
+                    masks = create_masks(filtered_arr1, max_width, train_shape, samp_rate, ds_height, args.plot_samples, cut_idx)
                     filtered_arr2 = norm_images(filtered_arr2, max_width, train_shape)
+                    masks = np.expand_dims(masks, axis=-1)
+                    traces_img = np.expand_dims(filtered_arr2, axis=-1)
+                    #traces_img = np.reshape(filtered_arr2, (len(filtered_arr2), train_shape[0], train_shape[1], 1))
 
-                    traces_img = np.reshape(filtered_arr2, (len(filtered_arr2), train_shape[0], train_shape[1], 1))
-                    masks = np.reshape(masks, (len(masks), train_shape[0], train_shape[1], 1))
+                    #masks = np.reshape(masks, (len(masks), train_shape[0], train_shape[1], 1))
 
                     del first_break_lines, filtered_arr2
                     gc.collect()
@@ -305,7 +310,7 @@ def clean_data(line, img):
         raise ValueError('line None')
     if img is None:
         raise ValueError('img None')
-
+    cut_idx = []
     if len(line) == 0 or img.shape[0] == 0:
         print('empty line or empty img to be cleaned??')
         raise
@@ -321,12 +326,15 @@ def clean_data(line, img):
             while idx < len(line):
                 if line[idx-1] == line[idx]:
                     line[idx-1] = 0
+                    cut_idx.append(idx-1)
                     idx += 1
+
                 else:
                     break
-    zero_indices = [index for index, value in enumerate(line) if value == 0]
+    zero_indices = [index for index, value in enumerate(line) if value == 0 and index in cut_idx]
     img[zero_indices, :] = np.zeros(img.shape[1], dtype=np.float32)
-    return line, img
+
+    return line, img, cut_idx
 
 
 def drop_train_data_to_file(masks, traces_img, train_shape):
