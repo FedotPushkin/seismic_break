@@ -8,3 +8,5 @@ Databases
 *json
 *.jpg
 *.png
+models
+train_dataset*
